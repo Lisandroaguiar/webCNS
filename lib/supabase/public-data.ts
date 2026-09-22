@@ -23,3 +23,11 @@ export const getPublishedCourseSchedules = unstable_cache(async () => {
   if (error) throw error;
   return data ?? [];
 }, ["published-course-schedules"], { revalidate: 300, tags: ["course-schedules"] });
+
+export const getPublishedCommunityPosts = unstable_cache(async () => {
+  const { data, error } = await publicClient().from("community_posts")
+    .select("id,title,body,event_type,event_date,event_time,location,image_url,link_url,accent,created_at,updated_at")
+    .eq("is_published", true).order("event_date", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data ?? [];
+}, ["published-community-posts"], { revalidate: 300, tags: ["community-posts"] });

@@ -1,4 +1,4 @@
-import { PublicHeader } from "@/components/app-shell/public-header";
+import { SessionAwareShell } from "@/components/app-shell/session-aware-shell";
 import { AcademicDeadlineCard } from "@/components/dashboard/academic-deadline-card";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/current-user";
@@ -13,9 +13,8 @@ export default async function AgendaPage() {
   const { data: reminders } = user ? await supabase.from("event_reminders").select("academic_event_id,reminder_type").eq("user_id", user.id).eq("enabled", true) : { data: [] };
   const nextEvent = events.find(event => new Date(event.ends_at ?? event.starts_at ?? "2999-12-31") >= new Date());
   const formatRange = (start?: string | null, end?: string | null) => start ? `${new Date(`${start}T12:00:00`).toLocaleDateString("es-AR", { day: "numeric", month: "long" })}${end && end !== start ? ` — ${new Date(`${end}T12:00:00`).toLocaleDateString("es-AR", { day: "numeric", month: "long" })}` : ""}` : "Fecha a confirmar";
-  return <main className="min-h-screen bg-cronopios-paper">
-    <PublicHeader />
-    <div className="mx-auto max-w-6xl px-5 py-10 md:px-8">
+  return <SessionAwareShell user={user}>
+    <div className={user ? "" : "mx-auto max-w-6xl px-5 py-10 md:px-8"}>
       <PaperScrap className="relative max-w-3xl px-7 py-8 md:px-10"><Tape className="-right-5 -top-4 rotate-6" /><p className="eyebrow">Facultad de Artes UNLP</p>
       <h1 className="editorial-title mt-5 text-5xl md:text-6xl">Agenda académica</h1>
       <p className="mt-4 max-w-2xl text-ink/65">Fechas de finales e inscripciones cuando estén confirmadas por una fuente oficial.</p></PaperScrap>
@@ -25,5 +24,5 @@ export default async function AgendaPage() {
         {!events.length && <p className="text-sm text-ink/60">Todavía no hay fechas publicadas. Estamos actualizando la agenda oficial.</p>}
       </section>
     </div>
-  </main>;
+  </SessionAwareShell>;
 }

@@ -2,8 +2,10 @@ import Link from "next/link";
 import { CalendarDays, Search } from "lucide-react";
 import { PublicHeader } from "@/components/app-shell/public-header";
 import { GridPaper, PaperScrap, Tape } from "@/components/visual/paper";
+import { getPublishedCommunityPosts } from "@/lib/supabase/public-data";
 
-export default function Home() {
+export default async function Home() {
+  const communityPosts = (await getPublishedCommunityPosts()).filter(post => !post.event_date || post.event_date.slice(0, 10) >= new Date().toISOString().slice(0, 10)).slice(0, 2);
   return (
     <main className="min-h-screen bg-cronopios-paper text-cronopios-ink">
       <PublicHeader />
@@ -35,6 +37,7 @@ export default function Home() {
         </div>
       </div></section>
       <section className="mx-auto grid w-full max-w-6xl gap-5 overflow-clip px-4 py-10 sm:px-5 md:grid-cols-2 md:px-8"><GridPaper className="max-w-full p-5 sm:p-7"><p className="eyebrow">Agenda real</p><h2 className="mt-4 font-display text-3xl font-black">Fechas oficiales, sin vueltas.</h2><p className="mt-3 max-w-md text-ink/65">Consultá inscripciones, llamados y próximos eventos desde una cartelera clara.</p></GridPaper><PaperScrap className="max-w-full p-5 sm:p-7"><p className="eyebrow">Tu recorrido</p><h2 className="mt-4 font-display text-3xl font-black">El plan completo, a mano.</h2><p className="mt-3 max-w-md text-ink/65">Marcá materias, mirá el avance y encontrá la información que necesitás.</p></PaperScrap></section>
+      <section className="border-y-2 border-ink bg-white"><div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-5 md:px-8"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Cartelera Cronopios</p><h2 className="mt-3 font-display text-3xl font-black">Actividades y encuentros</h2></div><Link href="/cartelera" className="button-primary">Ver toda la cartelera</Link></div><div className="mt-6 grid gap-4 md:grid-cols-2">{communityPosts.map(post => <article key={post.id} className="border-2 border-ink bg-cronopios-paper p-5 shadow-[4px_4px_0_0_#221E21]"><p className="font-mono text-xs font-bold uppercase tracking-widest text-cronopios-magenta">{post.event_type}</p><h3 className="mt-2 font-display text-xl font-black">{post.title}</h3><p className="mt-3 text-sm font-bold">{post.event_date ? new Date(`${post.event_date.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Fecha a confirmar"}{post.location ? ` · ${post.location}` : ""}</p></article>)}{!communityPosts.length && <p className="text-sm text-ink/60">Pronto vamos a publicar nuevas actividades.</p>}</div></div></section>
       <footer className="mx-auto max-w-6xl px-5 pb-8 font-mono text-xs font-bold uppercase tracking-widest text-cronopios-ink/55 md:px-8">Cronopios · Centro de Estudiantes · Facultad de Artes</footer>
     </main>
   );

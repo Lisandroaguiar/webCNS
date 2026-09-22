@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, Lock, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
-import { saveUserSubject, type SubjectStatus } from "@/lib/supabase/mvp-queries";
+import { saveUserSubjects, type SubjectStatus } from "@/lib/supabase/mvp-queries";
 import { subjectsForDegree, requirements2006, plan2006Source } from "@/lib/academic/degree-catalog";
 import { detectDegree, degreeOptions, type DegreeValue } from "@/lib/academic/curriculum";
 import { parseAnalitico } from "@/lib/analitico";
@@ -65,7 +65,13 @@ export function MateriasManager() {
     async function loadCatalogAndHistory() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) { setError("Volvé a iniciar sesión para cargar tu recorrido."); return; }
-      const { data: profile } = await supabase.from("profiles").select("curriculum").eq("id", user.id).maybeSingle();
+      const [profileResult, catalogResult, historyResult, correlativesResult] = await Promise.all([
+        supabase.from("profiles").select("curriculum").eq("id", user.id).maybeSingle(),
+        supabase.from("subjects").select("id, name, code, year, curriculum").eq("curriculum", curriculum).order("year", { ascending: true }).order("name", { ascending: true }),
+        supabase.from("user_subjects").select("subject_id, status, grade, passed_at").eq("user_id", user.id),
+        supabase.from("correlatives").select("subject_id, required_subject_id")
+      ]);
+      const { data: profile } = profileResult;
       const selectedDegree = detectDegree(user.user_metadata?.degree ?? "") ?? "licenciatura";
       setDegree(selectedDegree);
       if (!profileLoaded.current) {
@@ -74,12 +80,7 @@ export function MateriasManager() {
         if (savedCurriculum !== curriculum) { setCurriculum(savedCurriculum); return; }
       }
 
-      const { data, error: catalogError } = await supabase
-        .from("subjects")
-        .select("id, name, code, year, curriculum")
-        .eq("curriculum", curriculum)
-        .order("year", { ascending: true })
-        .order("name", { ascending: true });
+      const { data, error: catalogError } = catalogResult;
       if (catalogError) {
         const missingTable = catalogError.code === "PGRST205" || /schema cache|relation .* does not exist/i.test(catalogError.message);
         setError(missingTable
@@ -91,19 +92,14 @@ export function MateriasManager() {
       const subjects = subjectsForDegree(data ?? [], selectedDegree, curriculum).map(item => ({ id: item.id, code: item.code, nombre: item.name, anio: item.year, curriculum: item.curriculum as "old" | "new" }));
       setCatalog(subjects);
 
-      const { data: history, error: historyError } = await supabase
-        .from("user_subjects")
-        .select("subject_id, status, grade, passed_at")
-        .eq("user_id", user.id);
+      const { data: history, error: historyError } = historyResult;
       if (historyError) {
         setError(`No se pudo cargar tu historial: ${historyError.message}`);
         return;
       }
 
       setHistory((history ?? []) as SavedHistory[]);
-      const { data: correlativeData, error: correlativesError } = await supabase
-        .from("correlatives")
-        .select("subject_id, required_subject_id");
+      const { data: correlativeData, error: correlativesError } = correlativesResult;
       if (correlativesError) {
         setError(`No se pudieron cargar las correlatividades: ${correlativesError.message}`);
         return;
@@ -337,13 +333,9 @@ export function MateriasManager() {
       return;
     }
     try {
-      const results = await Promise.all(payload.map(item =>
-        saveUserSubject(supabase, user.id, item.subjectId, item.status, item.grade, item.passedAt)
-      ));
-      const failedIndex = results.findIndex(result => result.error);
-      if (failedIndex >= 0) {
-        const saveError = results[failedIndex].error;
-        setError(`No se pudo guardar «${rowsToSave[failedIndex].nombre}»: ${saveError?.message || "Supabase rechazó la operación"} (código ${saveError?.code ?? "desconocido"}).`);
+      const { error: saveError } = await saveUserSubjects(supabase, user.id, payload);
+      if (saveError) {
+        setError(`No se pudieron guardar las materias: ${saveError.message || "Supabase rechazó la operación"} (código ${saveError.code ?? "desconocido"}).`);
         return;
       }
 
@@ -405,10 +397,10 @@ export function MateriasManager() {
     </div>
     <div className="card">
       <h2 className="font-display text-xl font-bold">Importar analítico</h2>
-      <p className="mt-2 text-sm text-ink/60">Subí un PDF, imagen, CSV o TXT. El PDF/imagen usa una pre-carga mock; CSV/TXT intenta reconocer nombres y notas automáticamente.</p>
+      <p className="mt-2 text-sm text-ink/60">Subí un PDF con texto seleccionable, CSV o TXT. Vas a poder revisar todo antes de guardar.</p>
       <label className="mt-5 flex cursor-pointer items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-ink/15 p-8 text-sm text-ink/60 hover:border-coral">
         <Upload size={20} />{file ? file.name : "Elegir archivo"}
-        <input className="hidden" type="file" accept=".pdf,.csv,.txt,image/*" onChange={event => { setFile(event.target.files?.[0] || null); setMessage(""); setError(""); }} />
+        <input className="hidden" type="file" accept=".pdf,.csv,.txt,text/plain,text/csv,application/pdf" onChange={event => { setFile(event.target.files?.[0] || null); setMessage(""); setError(""); }} />
       </label>
       <div className="flex flex-wrap gap-3">
         <button disabled={!file || loading} onClick={() => void processFile()} className="button-primary mt-4 disabled:cursor-not-allowed disabled:opacity-40">

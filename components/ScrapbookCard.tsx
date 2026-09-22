@@ -1,12 +1,12 @@
-"use client";
-
-import { motion } from "framer-motion";
-
 export type ScrapbookCardProps = {
   title: string;
   eventType: string;
   date: string;
   description?: string;
+  time?: string | null;
+  location?: string | null;
+  imageUrl?: string | null;
+  linkUrl?: string | null;
   accent?: "lime" | "fuchsia" | "cyan";
 };
 
@@ -24,17 +24,11 @@ export function ScrapbookCard({
   title,
   eventType,
   date,
-  description,
+  description, time, location, imageUrl, linkUrl,
   accent = "lime"
 }: ScrapbookCardProps) {
   return (
-    <motion.article
-      initial={{ opacity: 0, y: 14, rotate: -2 }}
-      animate={{ opacity: 1, y: 0, rotate: -1 }}
-      whileHover={{ y: -5, rotate: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 18 }}
-      className={`relative border-2 border-black p-5 pt-7 shadow-brutal ${accentClasses[accent]}`}
-    >
+    <article className={`relative min-w-0 border-2 border-black p-5 pt-7 shadow-brutal transition-transform hover:-translate-y-1 ${accentClasses[accent]}`}>
       <span
         aria-hidden="true"
         className="absolute -top-3 left-1/2 h-7 w-24 -translate-x-1/2 rotate-[-3deg] border border-black/20 bg-cyan/75 shadow-sm"
@@ -48,7 +42,10 @@ export function ScrapbookCard({
         </time>
       </div>
       <h2 className="mt-5 font-mono text-2xl font-bold leading-tight text-black">{title}</h2>
+      {imageUrl && <img src={imageUrl} alt="" width={640} height={360} loading="lazy" className="mt-4 aspect-video w-full border-2 border-black object-cover" />}
+      {(time || location) && <p className="mt-3 font-mono text-sm font-bold text-black">{time}{time && location ? " · " : ""}{location}</p>}
       {description && <p className="mt-3 text-sm leading-relaxed text-black/80">{description}</p>}
-    </motion.article>
+      {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" className="mt-5 inline-block min-h-11 border-2 border-black bg-white px-3 py-2.5 text-sm font-bold text-black shadow-[3px_3px_0_0_#000]">Más info</a>}
+    </article>
   );
 }

@@ -41,6 +41,22 @@ export async function saveUserSubject(
   );
 }
 
+export async function saveUserSubjects(
+  supabase: SupabaseClient,
+  userId: string,
+  subjects: Array<{ subjectId: string | number; status: SubjectStatus; grade?: number; passedAt?: string }>
+) {
+  const updatedAt = new Date().toISOString();
+  return supabase.from("user_subjects").upsert(subjects.map(item => ({
+    user_id: userId,
+    subject_id: item.subjectId,
+    status: item.status,
+    grade: item.grade ?? null,
+    passed_at: item.status === "passed" ? item.passedAt ?? null : null,
+    updated_at: updatedAt
+  })), { onConflict: "user_id,subject_id" });
+}
+
 /**
  * La cartelera solo devuelve publicaciones vigentes; la política RLS
  * también impide leer posts no publicados desde clientes autenticados.

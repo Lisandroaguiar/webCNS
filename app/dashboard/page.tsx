@@ -6,6 +6,7 @@ import { getPublishedAcademicEvents } from "@/lib/supabase/public-data";
 import { subjectsForDegree } from "@/lib/academic/degree-catalog";
 import { detectDegree } from "@/lib/academic/curriculum";
 import { AcademicDeadlineCard } from "@/components/dashboard/academic-deadline-card";
+import { measureServerStep } from "@/lib/observability/performance";
 
 type SavedSubject = {
   id: string | number;
@@ -20,14 +21,19 @@ function subjectName(subject: SavedSubject["subject"]) {
 }
 
 export default async function DashboardPage() {
+  const renderStartedAt = performance.now();
   const supabase = await createClient();
-  const user = await getCurrentUser();
+  const userPromise = getCurrentUser();
+  const subjectsPromise = measureServerStep("subjects", () => supabase.from("subjects").select("id, code, curriculum"));
+  const eventsPromise = measureServerStep("academic_events", getPublishedAcademicEvents);
+  const user = await userPromise;
   const [{ data: profile }, { data: allSubjects }, { data: savedSubjects }, publicEvents] = await Promise.all([
-    supabase.from("profiles").select("full_name, curriculum").eq("id", user?.id).maybeSingle(),
-    supabase.from("subjects").select("id, code, curriculum"),
-    supabase.from("user_subjects").select("id, status, grade, subject_id, subject:subjects(name)").eq("user_id", user?.id),
-    getPublishedAcademicEvents()
+    measureServerStep("profile", () => supabase.from("profiles").select("full_name, curriculum").eq("id", user?.id).maybeSingle()),
+    subjectsPromise,
+    measureServerStep("user_subjects", () => supabase.from("user_subjects").select("id, status, grade, subject_id, subject:subjects(name)").eq("user_id", user?.id)),
+    eventsPromise
   ]);
+  if (process.env.PERF_LOG === "1") console.info(JSON.stringify({ event: "server_timing", name: "dashboard-data", duration_ms: Math.round((performance.now() - renderStartedAt) * 10) / 10 }));
   const selectedCurriculum = profile?.curriculum === "new" ? "new" : "old";
   const curriculumSubjects = subjectsForDegree((allSubjects ?? []).filter(subject => subject.curriculum === selectedCurriculum), detectDegree(user?.user_metadata?.degree ?? "") ?? "licenciatura", selectedCurriculum);
   const totalSubjects = curriculumSubjects.length;
