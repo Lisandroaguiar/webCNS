@@ -24,6 +24,13 @@ describe("Sprint 4.5 acceptance", () => {
     expect(route).toMatch(/revalidateTag\("community-posts"\)/);
   });
 
+  it("shows the content shortcut only to configured administrators", () => {
+    const shell = read("components/app-shell/authenticated-shell.tsx");
+    expect(shell).toMatch(/isAdminEmail\(user\?\.email\)/);
+    expect(shell).toMatch(/Subir contenido/);
+    expect(shell).toMatch(/\/admin\/cartelera/);
+  });
+
   it("renders public and authenticated navigation from one reusable shell", () => {
     const shell = read("components/app-shell/session-aware-shell.tsx");
     expect(shell).toMatch(/AuthenticatedShell/);
