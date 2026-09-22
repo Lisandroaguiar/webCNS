@@ -83,7 +83,7 @@ export default async function DashboardPage() {
     <section className="card mt-8 border-2 border-ink bg-white">
       <p className="eyebrow">Ya podés cursar</p>
       {available.slice(0, 3).map(item => <p key={item.subject.id} className="mt-3 font-bold">✦ {item.subject.name}</p>)}
-      <p className="mt-4 text-sm text-ink/60">{selectedCurriculum === "new" ? "Las reglas alternativas del Plan 2024 todavía requieren revisión manual." : !rows.length ? "Primero carguemos tu recorrido para calcular resultados útiles." : !available.length ? "Por ahora no encontramos nuevas materias habilitadas." : `${available.length} materias habilitadas según tu recorrido.`}</p>
+      <p className="mt-4 text-sm text-ink/60">{selectedCurriculum === "new" ? "Las reglas alternativas del Plan 2024 todavía requieren revisión manual." : !rows.length ? "Primero carguemos tu recorrido para calcular resultados útiles." : !available.length ? "Por ahora no encontramos nuevas materias habilitadas." : `${available.length} ${available.length === 1 ? "materia habilitada" : "materias habilitadas"} según tu recorrido.`}</p>
       <Link href="/dashboard/disponibles" className="mt-4 inline-flex min-h-11 items-center font-bold text-cronopios-magenta underline">Ver todas <ArrowRight className="ml-1" size={16} /></Link>
     </section>
     {!rows.length && <div className="mt-5 flex items-center gap-3 rounded-2xl border border-coral/30 bg-coral/10 p-4 text-sm"><CircleAlert className="text-coral" size={20} /> Cargá tus materias desde <Link className="font-bold underline" href="/dashboard/recorrido">Mi recorrido</Link>.</div>}
