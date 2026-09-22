@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, FileUp, Loader2, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 import { saveUserSubject, type SubjectStatus } from "@/lib/supabase/mvp-queries";
@@ -15,6 +17,7 @@ type Subject = { id: string | number; name: string; code: string | null; year: n
 type Step = "choose" | "manual" | "review";
 
 export function OnboardingShell() {
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [step, setStep] = useState<Step>("choose");
   const [degree, setDegree] = useState<DegreeValue>("licenciatura");
@@ -115,7 +118,8 @@ export function OnboardingShell() {
       if (failed?.error) throw new Error("No pudimos guardar todas las materias. Revisá tu conexión e intentá nuevamente.");
       localStorage.setItem("cronopios-curriculum", curriculum);
       document.cookie = `cronopios-curriculum=${curriculum}; path=/; max-age=31536000; samesite=lax`;
-      window.location.href = "/dashboard";
+      router.push("/dashboard");
+      router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No pudimos guardar tu recorrido.");
     } finally { setSaving(false); }
@@ -143,7 +147,7 @@ export function OnboardingShell() {
         <button className="button-primary mt-5 w-full" disabled={loading} onClick={() => void startManual()}>{loading ? "Preparando..." : "Empezar a mano"}</button>
       </article>
     </div>}
-    {step === "manual" && <div className="card mt-8"><CheckCircle2 className="text-cronopios-magenta" /><h2 className="mt-3 font-display text-2xl font-black">Tu plan está listo</h2><p className="mt-2 text-sm text-cronopios-ink/65">Podés empezar a marcar materias desde Recorrido. Después podés modificar todo.</p><a href="/dashboard/recorrido" className="button-primary mt-5 inline-block">Ir a Recorrido</a></div>}
+    {step === "manual" && <div className="card mt-8"><CheckCircle2 className="text-cronopios-magenta" /><h2 className="mt-3 font-display text-2xl font-black">Tu plan está listo</h2><p className="mt-2 text-sm text-cronopios-ink/65">Podés empezar a marcar materias desde Recorrido. Después podés modificar todo.</p><Link href="/dashboard/recorrido" prefetch className="button-primary mt-5 inline-block">Ir a Recorrido</Link></div>}
     {step === "review" && parsed && <div className="mt-8">
       <div className="border-2 border-cronopios-ink bg-white p-5 shadow-[4px_4px_0_0_#221E21]"><h2 className="font-display text-2xl font-black">Revisá tu analítico</h2><div className="mt-4 grid gap-3 text-sm sm:grid-cols-3"><p><strong>Carrera:</strong> {degreeOptions.find(option => option.value === degree)?.label ?? "No detectada"}</p><p><strong>Plan:</strong> {curriculumOptions.find(option => option.value === curriculum)?.label ?? "No detectado"}</p><p><strong>Reconocidas:</strong> {matches.filter(item => item.subjectId).length} de {matches.length}</p></div>{parsed.warnings.map(warning => <p key={warning} className="mt-4 flex gap-2 bg-yellow-100 p-3 text-sm"><TriangleAlert size={18} className="shrink-0" />{warning}</p>)}{parsed.reportedApprovedCount !== undefined && parsed.reportedApprovedCount !== matches.length && <p className="mt-4 bg-yellow-100 p-3 text-sm">El analítico indica {parsed.reportedApprovedCount} materias aprobadas, pero pudimos reconocer {matches.length}. Revisemos las que faltan.</p>}</div>
       <div className="mt-4 space-y-3">{matches.map((item, index) => <div key={`${item.rawName}-${index}`} className="border-2 border-cronopios-ink bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold">{item.rawName}</p><p className="mt-1 text-xs uppercase tracking-widest text-cronopios-magenta">{item.kind} · {item.status === "regular" ? "Regularizada" : item.status === "pending" ? "Pendiente" : "Aprobada"}{item.grade !== undefined ? ` · Nota ${item.grade}` : " · Nota no detectada"}</p>{item.passedAt && <p className="mt-1 text-xs text-cronopios-ink/55">{item.passedAt}</p>}</div><div className="flex w-full flex-col gap-2 sm:w-auto"><select className="input max-w-full sm:max-w-xs" aria-label={`Materia para ${item.rawName}`} value={item.subjectId ?? ""} onChange={event => updateMatch(index, event.target.value)}><option value="">Ignorar esta fila</option>{catalog.map(subject => <option key={subject.id} value={String(subject.id)}>{subject.name}</option>)}</select><select className="input max-w-full sm:max-w-xs" aria-label={`Estado para ${item.rawName}`} value={item.status ?? "passed"} onChange={event => setMatches(current => current.map((currentItem, currentIndex) => currentIndex === index ? { ...currentItem, status: event.target.value as "passed" | "regular" | "pending" } : currentItem))}><option value="passed">Aprobada</option><option value="regular">Regularizada</option><option value="pending">Pendiente</option></select></div></div></div>)}</div>

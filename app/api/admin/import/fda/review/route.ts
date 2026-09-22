@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recalculatePendingRemindersForEvent } from "@/lib/notifications/push";
@@ -26,5 +27,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 422 });
   }
   if (body.table === "academic_events" && body.action === "publish") await recalculatePendingRemindersForEvent(body.id);
+  revalidateTag(body.table === "academic_events" ? "academic-events" : "course-schedules");
   return NextResponse.json({ ok: true });
 }

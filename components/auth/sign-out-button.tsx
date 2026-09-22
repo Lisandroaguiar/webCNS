@@ -1,9 +1,11 @@
 "use client";
 
 import { LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 
 export function SignOutButton() {
+  const router = useRouter();
   async function signOut() {
     const { error } = await createClient().auth.signOut({ scope: "local" });
     if (error) {
@@ -14,7 +16,8 @@ export function SignOutButton() {
       form.submit();
       return;
     }
-    window.location.replace("/login");
+    router.replace("/login");
+    router.refresh();
   }
 
   return (

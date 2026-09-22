@@ -51,13 +51,13 @@ export function CatedrasDirectory({ schedules = [] }: { schedules?: Schedule[] }
     </div>
     <p className="mt-4 text-sm text-ink/50">{filtered.length} resultado(s)</p>
     <div className="mt-3 grid gap-4 md:grid-cols-2">
-      {filtered.map(item => <article key={`${item.area}-${item.materia}`} className="card transition hover:-translate-y-1 hover:border-coral/30">
+      {filtered.map(item => <article key={`${item.area}-${item.materia}`} className="card min-w-0 transition hover:-translate-y-1 hover:border-coral/30">
         <p className="text-xs font-semibold uppercase tracking-widest text-coral">{item.area}</p>
         <h2 className="mt-2 font-display text-xl font-bold">{item.materia}</h2>
         {item.nombresAlternativos && <p className="mt-2 text-sm text-ink/55">{item.nombresAlternativos}</p>}
         {item.docentes && <p className="mt-4 text-sm font-medium text-ink/75">{item.docentes}</p>}
         {cardSchedules(item).slice(0, 4).map(schedule => <div key={`${schedule.raw_subject_name}-${schedule.weekday}-${schedule.start_time}`} className="mt-4 border-l-4 border-cronopios-magenta pl-3 text-sm"><p className="font-bold">{schedule.weekday} · {schedule.start_time}{schedule.end_time ? `–${schedule.end_time}` : ""}</p><p className="text-ink/70">{schedule.commission || "Comisión a confirmar"} · {schedule.classroom || "Aula a confirmar"}{schedule.campus ? ` · ${schedule.campus}` : ""}</p><p className="mt-1 text-xs text-ink/50">Fuente: {schedule.source_label}</p></div>)}
-        {item.contacto ? <p className="mt-4 flex items-start gap-2 whitespace-pre-line text-sm text-ink/70"><Mail className="mt-0.5 shrink-0 text-coral" size={16} />{item.contacto}</p> : <p className="mt-4 text-sm italic text-ink/45">No se publicó un contacto específico.</p>}
+        {item.contacto ? <p className="mt-4 flex min-w-0 items-start gap-2 whitespace-pre-line text-sm text-ink/70 [overflow-wrap:anywhere]"><Mail className="mt-0.5 shrink-0 text-coral" size={16} />{item.contacto}</p> : <p className="mt-4 text-sm italic text-ink/45">No se publicó un contacto específico.</p>}
         {item.redes && <div className="mt-4 flex flex-wrap gap-3">{item.redes.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="min-h-11 py-2 text-sm font-semibold text-coral hover:underline">{link.label} ↗</a>)}</div>}
       </article>)}
       {!filtered.length && <p className="text-sm text-ink/60">No encontramos cátedras con esa búsqueda.</p>}

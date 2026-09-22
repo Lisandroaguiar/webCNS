@@ -1,15 +1,14 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { CalendarDays, GraduationCap, Home, Search, Settings } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/current-user";
 import { BrandMark } from "@/components/brand/brand-mark";
 import { DashboardHeader } from "@/components/app-shell/dashboard-header";
 import { MobileBottomNav } from "@/components/app-shell/mobile-bottom-nav";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   return <div className="min-h-screen bg-cronopios-paper">
     <aside className="fixed inset-y-0 hidden w-64 flex-col border-r-2 border-cronopios-ink bg-white p-6 md:flex">
       <BrandMark />

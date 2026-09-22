@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, CheckCircle2, CircleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/current-user";
+import { getPublishedAcademicEvents } from "@/lib/supabase/public-data";
 import { subjectsForDegree } from "@/lib/academic/degree-catalog";
 import { detectDegree } from "@/lib/academic/curriculum";
 import { AcademicDeadlineCard } from "@/components/dashboard/academic-deadline-card";
 
 type SavedSubject = {
   id: string | number;
+  subject_id: number;
   status: string;
   grade: number | null;
   subject: { name: string } | { name: string }[] | null;
@@ -18,23 +21,20 @@ function subjectName(subject: SavedSubject["subject"]) {
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from("profiles").select("full_name, curriculum").eq("id", user?.id).maybeSingle();
-  const selectedCurriculum = profile?.curriculum === "new" ? "new" : "old";
-  const [{ data: allSubjects }, { data: nextEvent }] = await Promise.all([
-    supabase.from("subjects").select("id, code").eq("curriculum", selectedCurriculum),
-    supabase.from("academic_events").select("title, starts_at, ends_at, source_label, updated_at").eq("status", "published").gte("ends_at", new Date().toISOString().slice(0, 10)).order("starts_at", { ascending: true }).limit(1).maybeSingle()
+  const user = await getCurrentUser();
+  const [{ data: profile }, { data: allSubjects }, { data: savedSubjects }, publicEvents] = await Promise.all([
+    supabase.from("profiles").select("full_name, curriculum").eq("id", user?.id).maybeSingle(),
+    supabase.from("subjects").select("id, code, curriculum"),
+    supabase.from("user_subjects").select("id, status, grade, subject_id, subject:subjects(name)").eq("user_id", user?.id),
+    getPublishedAcademicEvents()
   ]);
-  const curriculumSubjects = subjectsForDegree(allSubjects ?? [], detectDegree(user?.user_metadata?.degree ?? "") ?? "licenciatura", selectedCurriculum);
+  const selectedCurriculum = profile?.curriculum === "new" ? "new" : "old";
+  const curriculumSubjects = subjectsForDegree((allSubjects ?? []).filter(subject => subject.curriculum === selectedCurriculum), detectDegree(user?.user_metadata?.degree ?? "") ?? "licenciatura", selectedCurriculum);
   const totalSubjects = curriculumSubjects.length;
   const curriculumIds = curriculumSubjects.map(subject => subject.id);
-  const { data: savedSubjects } = await supabase
-    .from("user_subjects")
-    .select("id, status, grade, subject:subjects(name)")
-    .eq("user_id", user?.id)
-    .in("subject_id", curriculumIds);
-
-  const rows = (savedSubjects ?? []) as SavedSubject[];
+  const rows = (savedSubjects ?? []).filter(subject => curriculumIds.includes(subject.subject_id)) as SavedSubject[];
+  const today = new Date().toISOString().slice(0, 10);
+  const nextEvent = publicEvents.find(event => (event.ends_at ?? event.starts_at ?? "2999-12-31") >= today);
   const approved = rows.filter(subject => subject.status === "passed");
   const total = totalSubjects ?? 0;
   const progress = total ? Math.round((approved.length / total) * 100) : 0;

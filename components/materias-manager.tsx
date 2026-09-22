@@ -453,15 +453,19 @@ export function MateriasManager() {
                   nota: saved?.grade == null ? "" : String(saved.grade),
                   fecha_aprobacion: saved?.passed_at ?? ""
                 } : null);
-                return <div key={subject.id} className={`relative overflow-hidden rounded-xl border-2 p-3 transition ${checked ? "border-ink bg-yellow-100 shadow-[3px_3px_0_0_#000]" : "border-ink/10 bg-cream/50"} ${!unlocked ? "opacity-75" : ""}`}>
+                return <div key={subject.id} className={`relative min-w-0 overflow-hidden rounded-xl border-2 p-3 transition ${checked ? "border-ink bg-yellow-100 shadow-[3px_3px_0_0_#000]" : "border-ink/10 bg-cream/50"} ${!unlocked ? "opacity-75" : ""}`}>
                   {checked && <span aria-hidden className="marker-fluo" />}
-                  <div className="relative z-[1] flex items-center gap-3">
-                    <input className="h-5 w-5 accent-ink disabled:cursor-not-allowed" type="checkbox" checked={checked} disabled={!unlocked && !checked} onChange={event => toggleSubject(subject, event.target.checked)} />
-                    {!unlocked && <Lock aria-label="Materia bloqueada por correlativas" size={16} className="shrink-0 text-ink/45" />}
-                    <span className="min-w-0 flex-1 font-medium">{subject.nombre}</span>
-                    {unlocked && activeRow && <div className="grid w-full max-w-md gap-2 sm:grid-cols-[120px_100px]">
-                      <select className="input py-2 text-sm" value={activeRow.estado} onChange={event => updateRow(subject.id, { estado: event.target.value as SubjectRow["estado"] })}><option value="pendiente">Pendiente</option><option value="regular">Regular</option><option value="aprobada">Aprobada</option></select>
-                      <input className="input py-2 text-sm" type="number" min="1" max="10" step="0.1" placeholder="Nota" value={activeRow.nota} onChange={event => updateRow(subject.id, { nota: event.target.value })} />
+                  <div className="relative z-[1] grid min-w-0 gap-4 md:grid-cols-[auto_minmax(0,1fr)_minmax(220px,auto)] md:items-center md:gap-3">
+                    <div className="flex min-w-0 items-start gap-3 md:contents">
+                      <input className="mt-0.5 h-5 w-5 shrink-0 accent-ink disabled:cursor-not-allowed md:mt-0" type="checkbox" checked={checked} disabled={!unlocked && !checked} onChange={event => toggleSubject(subject, event.target.checked)} />
+                      <div className="flex min-w-0 items-start gap-2">
+                        {!unlocked && <Lock aria-label="Materia bloqueada por correlativas" size={16} className="mt-0.5 shrink-0 text-ink/45" />}
+                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}</span>
+                      </div>
+                    </div>
+                    {unlocked && activeRow && <div className="grid min-w-0 w-full gap-3 sm:grid-cols-2 md:max-w-md md:grid-cols-[120px_100px] md:gap-2">
+                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Estado</span><select aria-label={`Estado de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" value={activeRow.estado} onChange={event => updateRow(subject.id, { estado: event.target.value as SubjectRow["estado"] })}><option value="pendiente">Pendiente</option><option value="regular">Regular</option><option value="aprobada">Aprobada</option></select></label>
+                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Nota</span><input aria-label={`Nota de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" type="number" min="1" max="10" step="0.1" placeholder="Nota" value={activeRow.nota} onChange={event => updateRow(subject.id, { nota: event.target.value })} /></label>
                     </div>}
                   </div>
                   {!unlocked && missingRequirements.length > 0 && <p className="relative z-[1] mt-2 pl-8 text-xs font-medium text-ink/55">Necesitás aprobar o regularizar: {missingRequirements.map(required => required.nombre).join(", ")} para poder cursarla.</p>}

@@ -1,12 +1,13 @@
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/current-user";
 import { NotificationSettings } from "@/components/notifications/notification-settings";
 import { PaperScrap, Tape } from "@/components/visual/paper";
 
 export default async function PerfilPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   const { count: reminderCount } = user ? await supabase.from("event_reminders").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("enabled", true) : { count: 0 };
   return <section className="max-w-2xl">
     <PaperScrap className="relative px-7 py-8"><Tape className="-right-4 -top-4 rotate-6" /><p className="eyebrow">Cuenta</p>

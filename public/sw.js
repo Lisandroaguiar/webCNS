@@ -3,8 +3,8 @@ self.addEventListener("push", event => {
   try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
   event.waitUntil(self.registration.showNotification(payload.title || "Mesita Virtual", {
     body: payload.body || "Tenés una fecha académica próxima.",
-    icon: "/icons/mesita.svg",
-    badge: "/icons/mesita.svg",
+    icon: "/icons/mesita-192.png",
+    badge: "/icons/mesita-192.png",
     data: { eventId: payload.eventId, targetUrl: payload.targetUrl || "/agenda" }
   }));
 });

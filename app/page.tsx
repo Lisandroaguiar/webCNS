@@ -7,12 +7,12 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-cronopios-paper text-cronopios-ink">
       <PublicHeader />
-      <section className="border-b-2 border-ink bg-cronopios-magenta">
-      <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 md:grid-cols-[1.15fr_0.85fr] md:items-center md:px-8 md:py-24">
-        <div className="relative">
-          <Tape className="-left-5 -top-8 rotate-6" />
-          <p className="mb-5 inline-block border-2 border-ink bg-cronopios-green px-3 py-2 font-mono text-xs font-bold uppercase tracking-[0.2em]">Cronopios · Facultad de Artes UNLP</p>
-          <h1 className="editorial-title max-w-2xl text-5xl md:text-7xl">Todo lo que necesitás para moverte por la facu.</h1>
+      <section className="overflow-clip border-b-2 border-ink bg-cronopios-magenta">
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 sm:px-5 md:grid-cols-[1.15fr_0.85fr] md:items-center md:gap-10 md:px-8 md:py-24">
+        <div className="relative min-w-0">
+          <Tape className="left-0 top-[-1.75rem] rotate-3" />
+          <p className="mb-5 inline-block max-w-full border-2 border-ink bg-cronopios-green px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.12em] sm:text-xs sm:tracking-[0.2em]">Cronopios · Facultad de Artes UNLP</p>
+          <h1 className="editorial-title max-w-2xl text-[clamp(2.45rem,12vw,4.5rem)]">Todo lo que necesitás para moverte por la facu.</h1>
           <p className="mt-7 max-w-lg text-lg leading-relaxed text-cronopios-ink/70">Mesita Virtual reúne tu recorrido académico, las fechas importantes y la información de cátedras en un solo lugar.</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/registro" className="min-h-11 border-2 border-cronopios-ink bg-cronopios-pink px-5 py-3 font-bold shadow-[4px_4px_0_0_#221E21] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cronopios-magenta">Armar mi recorrido</Link>
@@ -23,10 +23,10 @@ export default function Home() {
             <Link href="/agenda" className="flex min-h-14 items-center gap-3 border-2 border-cronopios-ink bg-white px-4 py-3 font-bold shadow-[3px_3px_0_0_#221E21] hover:-translate-y-0.5"><CalendarDays size={19} /> Ver próximas fechas</Link>
           </div>
         </div>
-        <div className="relative border-2 border-cronopios-ink bg-cronopios-ink p-5 text-white shadow-[8px_8px_0_0_#19F094] md:rotate-2">
+        <div className="relative min-w-0 max-w-full border-2 border-cronopios-ink bg-cronopios-ink p-4 text-white shadow-[5px_5px_0_0_#19F094] sm:p-5 md:rotate-2 md:shadow-[8px_8px_0_0_#19F094]">
           <Tape className="-top-5 left-1/2 -translate-x-1/2" />
           <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-cronopios-green">ficha de uso</p>
-          <PaperScrap className="mt-8 p-7 text-cronopios-ink">
+          <PaperScrap className="mt-8 max-w-full p-5 text-cronopios-ink sm:p-7">
             <p className="font-mono text-xs font-bold uppercase tracking-widest text-cronopios-magenta">Mesita Virtual</p>
             <p className="mt-6 font-display text-3xl font-black leading-none">Tu recorrido,<br />en un vistazo.</p>
             <div className="mt-8 h-3 border-2 border-cronopios-ink"><div className="h-full w-2/5 bg-cronopios-green" /></div>
@@ -34,7 +34,7 @@ export default function Home() {
           </PaperScrap>
         </div>
       </div></section>
-      <section className="mx-auto grid max-w-6xl gap-5 px-5 py-10 md:grid-cols-2 md:px-8"><GridPaper className="p-7"><p className="eyebrow">Agenda real</p><h2 className="mt-4 font-display text-3xl font-black">Fechas oficiales, sin vueltas.</h2><p className="mt-3 max-w-md text-ink/65">Consultá inscripciones, llamados y próximos eventos desde una cartelera clara.</p></GridPaper><PaperScrap className="p-7"><p className="eyebrow">Tu recorrido</p><h2 className="mt-4 font-display text-3xl font-black">El plan completo, a mano.</h2><p className="mt-3 max-w-md text-ink/65">Marcá materias, mirá el avance y encontrá la información que necesitás.</p></PaperScrap></section>
+      <section className="mx-auto grid w-full max-w-6xl gap-5 overflow-clip px-4 py-10 sm:px-5 md:grid-cols-2 md:px-8"><GridPaper className="max-w-full p-5 sm:p-7"><p className="eyebrow">Agenda real</p><h2 className="mt-4 font-display text-3xl font-black">Fechas oficiales, sin vueltas.</h2><p className="mt-3 max-w-md text-ink/65">Consultá inscripciones, llamados y próximos eventos desde una cartelera clara.</p></GridPaper><PaperScrap className="max-w-full p-5 sm:p-7"><p className="eyebrow">Tu recorrido</p><h2 className="mt-4 font-display text-3xl font-black">El plan completo, a mano.</h2><p className="mt-3 max-w-md text-ink/65">Marcá materias, mirá el avance y encontrá la información que necesitás.</p></PaperScrap></section>
       <footer className="mx-auto max-w-6xl px-5 pb-8 font-mono text-xs font-bold uppercase tracking-widest text-cronopios-ink/55 md:px-8">Cronopios · Centro de Estudiantes · Facultad de Artes</footer>
     </main>
   );

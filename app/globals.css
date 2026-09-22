@@ -13,6 +13,7 @@
 }
 * { box-sizing: border-box; }
 body {
+  min-width: 0;
   background-color: var(--cronopios-paper);
   background-image: radial-gradient(rgba(0, 0, 0, 0.09) 0.65px, transparent 0.65px);
   background-size: 7px 7px;
@@ -21,7 +22,7 @@ body {
 button, a, input, select { @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cronopios-magenta; }
 ::selection { background: var(--cronopios-pink); color: var(--cronopios-ink); }
 @layer components {
-  .card { @apply rounded-none border-2 border-black bg-white p-5 shadow-[4px_4px_0_0_#221E21]; }
+  .card { @apply min-w-0 max-w-full rounded-none border-2 border-black bg-white p-5 shadow-[4px_4px_0_0_#221E21]; }
   .input { @apply w-full rounded-xl border border-ink/15 bg-white/80 px-4 py-3 outline-none transition placeholder:text-ink/35 focus:border-coral focus:ring-2 focus:ring-coral/20; }
   .button-primary { @apply min-h-11 rounded-none border-2 border-ink bg-cronopios-magenta px-5 py-3 font-bold text-ink shadow-[4px_4px_0_0_#221E21] transition hover:-translate-y-0.5 hover:bg-cronopios-pink; }
   .eyebrow { @apply inline-block bg-cronopios-magenta px-2 py-1 text-xs font-bold uppercase tracking-[0.22em] text-ink; }
@@ -29,11 +30,17 @@ button, a, input, select { @apply focus-visible:outline focus-visible:outline-2 
 
 .paper-scrap {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   background: #fff url('/textures/paper-white.svg') center / 100% 100% no-repeat;
   filter: drop-shadow(5px 6px 0 rgba(34,30,33,.95));
 }
 .grid-paper {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   background: #faf9f3 url('/textures/paper-grid.svg') center / 100% 100% no-repeat;
   filter: drop-shadow(4px 5px 0 rgba(34,30,33,.9));
 }
@@ -42,11 +49,20 @@ button, a, input, select { @apply focus-visible:outline focus-visible:outline-2 
   z-index: 2;
   width: 7rem;
   height: 2.2rem;
-  background: url('/textures/tape.svg') center / 100% 100% no-repeat;
+  max-width: min(7rem, 42vw);
+  background: url('/textures/tape-real.png') center / 250% auto no-repeat;
   transform: rotate(-3deg);
   pointer-events: none;
 }
 .editorial-title { @apply font-display font-black uppercase leading-[0.9] tracking-[-0.055em]; }
+.editorial-title { overflow-wrap: anywhere; }
+
+@media (max-width: 639px) {
+  .card { padding: 0.875rem; }
+  .paper-scrap, .grid-paper { filter: drop-shadow(3px 4px 0 rgba(34,30,33,.9)); }
+}
+
+img, svg, video, canvas { max-width: 100%; }
 .active-nav-cutout { @apply bg-cronopios-magenta text-ink shadow-[2px_2px_0_0_#221E21]; }
 
 @media (prefers-reduced-motion: reduce) {

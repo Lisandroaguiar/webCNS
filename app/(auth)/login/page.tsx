@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Route } from "next";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { BrandMark } from "@/components/brand/brand-mark";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setError("");
     const { error } = await createClient().auth.signInWithPassword({ email, password });
     if (error) setError(error.message); else {
       const next = new URLSearchParams(window.location.search).get("next");
-      window.location.href = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      const destination = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      router.replace(destination as Route);
+      router.refresh();
     }
     setLoading(false);
   }
