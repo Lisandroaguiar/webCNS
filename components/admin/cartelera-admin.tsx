@@ -13,11 +13,33 @@ export function CarteleraAdmin({ posts }: { posts: Post[] }) {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   async function submit(payload: Record<string, unknown>) {
-    setSaving(true); setMessage("");
-    const response = await fetch("/api/admin/cartelera", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-    const result = await response.json(); setSaving(false);
-    if (!response.ok) return setMessage(result.error ?? "No pudimos guardar la actividad.");
-    setMessage("Cartelera actualizada."); setEditing(null); setForm(empty); router.refresh();
+    if (saving) return;
+    setSaving(true);
+    setMessage("");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch("/api/admin/cartelera", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        setMessage(result.error ?? "No pudimos guardar la actividad. Intentá de nuevo.");
+        return;
+      }
+      setMessage("Cartelera actualizada.");
+      setEditing(null);
+      setForm(empty);
+      router.refresh();
+    } catch {
+      setMessage("Se interrumpió la conexión. Comprobá si la actividad aparece en Publicaciones antes de volver a guardar.");
+    } finally {
+      window.clearTimeout(timeout);
+      setSaving(false);
+    }
   }
   function edit(post: Post) {
     setEditing(post.id); setForm({ title: post.title, body: post.body, eventType: post.event_type, eventDate: post.event_date ?? "", eventTime: post.event_time?.slice(0, 5) ?? "", location: post.location ?? "", imageUrl: post.image_url ?? "", linkUrl: post.link_url ?? "", accent: post.accent, isPublished: post.is_published });
