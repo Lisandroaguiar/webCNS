@@ -1,4 +1,4 @@
-# Trama · Artes UNLP
+# Mesita · Artes UNLP
 
 Aplicación web para organizar el recorrido académico de estudiantes de la Facultad de Artes de la UNLP.
 
