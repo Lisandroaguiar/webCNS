@@ -1,0 +1,92 @@
+{
+  "timestamp": "2026-09-22T00:15:33.856Z",
+  "roles": {
+    "anonymous": {
+      "academic_events": {
+        "deletedFixtureRows": 0,
+        "deleteError": null,
+        "publishedCount": 7,
+        "readError": null,
+        "draftsVisible": 0,
+        "draftReadError": null,
+        "updateDraftRows": 0,
+        "updateDraftError": null,
+        "updatePublishedRows": 0,
+        "updatePublishedError": null,
+        "insertError": {
+          "code": "42501",
+          "details": null,
+          "hint": null,
+          "message": "new row violates row-level security policy for table \"academic_events\""
+        }
+      },
+      "course_schedules": {
+        "deletedFixtureRows": 0,
+        "deleteError": null,
+        "publishedCount": 28,
+        "readError": null,
+        "draftsVisible": 0,
+        "draftReadError": null,
+        "updateDraftRows": 0,
+        "updateDraftError": null,
+        "updatePublishedRows": 0,
+        "updatePublishedError": null,
+        "insertError": {
+          "code": "42501",
+          "details": null,
+          "hint": null,
+          "message": "new row violates row-level security policy for table \"course_schedules\""
+        }
+      },
+      "import_runs": {
+        "count": 0,
+        "error": null
+      }
+    },
+    "authenticated_normal": {
+      "academic_events": {
+        "deletedFixtureRows": 0,
+        "deleteError": null,
+        "publishedCount": 7,
+        "readError": null,
+        "draftsVisible": 0,
+        "draftReadError": null,
+        "updateDraftRows": 0,
+        "updateDraftError": null,
+        "updatePublishedRows": 0,
+        "updatePublishedError": null,
+        "insertError": {
+          "code": "42501",
+          "details": null,
+          "hint": null,
+          "message": "new row violates row-level security policy for table \"academic_events\""
+        }
+      },
+      "course_schedules": {
+        "deletedFixtureRows": 0,
+        "deleteError": null,
+        "publishedCount": 28,
+        "readError": null,
+        "draftsVisible": 0,
+        "draftReadError": null,
+        "updateDraftRows": 0,
+        "updateDraftError": null,
+        "updatePublishedRows": 0,
+        "updatePublishedError": null,
+        "insertError": {
+          "code": "42501",
+          "details": null,
+          "hint": null,
+          "message": "new row violates row-level security policy for table \"course_schedules\""
+        }
+      },
+      "import_runs": {
+        "count": 0,
+        "error": null
+      }
+    }
+  },
+  "normalAdminEndpoint": 403,
+  "anonymousAdminEndpoint": 403,
+  "fixturesRemoved": true
+}

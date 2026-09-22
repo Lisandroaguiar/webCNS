@@ -1,0 +1,83 @@
+
+> artes-unlp@0.1.0 test
+> vitest run
+
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+
+ RUN  v2.1.9 C:/Users/invitado123/Documents/webAppCronopios
+
+ ✓ lib/fda/parsers/academic-calendar-pdf.test.ts (2 tests) 5ms
+ ✓ lib/fda/parsers/google-sheet-schedule.test.ts (2 tests) 5ms
+ ✓ lib/academic/degree-catalog.test.ts (2 tests) 8ms
+ ✓ lib/academic/analytic-parser.test.ts (2 tests) 6ms
+ ✓ lib/academic/analytic-pdf-text.test.ts (3 tests) 7ms
+ ✓ lib/fda/matching.test.ts (1 test) 3ms
+ ❯ validation/sprint3-acceptance.test.ts (5 tests | 3 failed) 21ms
+   × Sprint 3 acceptance audit > calendar keys survive whitespace and capitalization 10ms
+     → expected '1be41ce80c6abd39c23d87fa9c69a483' to be '4660c69abc9a19a2831bb87026ddd074' // Object.is equality
+   × Sprint 3 acceptance audit > admin client has a server-only boundary 1ms
+     → expected 'import { createClient } from "@supaba…' to match /import\s+["']server-only["']/
+   × Sprint 3 acceptance audit > valid import followed by zero rows preserves published data and emits a warning 4ms
+     → expected 0 to be greater than 0
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  validation/sprint3-acceptance.test.ts > Sprint 3 acceptance audit > calendar keys survive whitespace and capitalization
+AssertionError: expected '1be41ce80c6abd39c23d87fa9c69a483' to be '4660c69abc9a19a2831bb87026ddd074' // Object.is equality
+
+Expected: "4660c69abc9a19a2831bb87026ddd074"
+Received: "1be41ce80c6abd39c23d87fa9c69a483"
+
+ ❯ validation/sprint3-acceptance.test.ts:26:100
+     24|  const a=parseAcademicCalendarText("Mesa noviembre: inscripción del 2 …
+     25|  const b=parseAcademicCalendarText("MESA NOVIEMBRE:  INSCRIPCIÓN DEL 2…
+     26|  expect(a.events).toHaveLength(1);expect(b.events).toHaveLength(1);exp…
+       |                                                                                                    ^
+     27|  });
+     28|  it("schedule keys survive whitespace and capitalization",()=>{
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  validation/sprint3-acceptance.test.ts > Sprint 3 acceptance audit > admin client has a server-only boundary
+AssertionError: expected 'import { createClient } from "@supaba…' to match /import\s+["']server-only["']/
+
+- Expected: 
+/import\s+["']server-only["']/
+
++ Received: 
+"import { createClient } from \"@supabase/supabase-js\";
+
+export function createAdminClient() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) throw new Error(\"Falta configurar SUPABASE_SERVICE_ROLE_KEY para ejecutar imports administrativos.\");
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+"
+
+ ❯ validation/sprint3-acceptance.test.ts:33:105
+     31|  expect(a[0].externalKey).toBe(b[0].externalKey);
+     32|  });
+     33|  it("admin client has a server-only boundary",()=>{expect(readFileSync…
+       |                                                                                                         ^
+     34|  it("normal authenticated users cannot invoke imports",async()=>{state…
+     35|  it("valid import followed by zero rows preserves published data and e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  validation/sprint3-acceptance.test.ts > Sprint 3 acceptance audit > valid import followed by zero rows preserves published data and emits a warning
+AssertionError: expected 0 to be greater than 0
+ ❯ validation/sprint3-acceptance.test.ts:43:35
+     41|  expect(JSON.stringify(state.tables.academic_events)).toBe(before);
+     42|  expect(response.status).toBe("warning");expect(response.recordsFound)…
+     43|  expect(response.warnings.length).toBeGreaterThan(0);
+       |                                   ^
+     44|  });
+     45| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+ Test Files  1 failed | 6 passed (7)
+      Tests  3 failed | 14 passed (17)
+   Start at  21:10:10
+   Duration  641ms (transform 407ms, setup 0ms, collect 629ms, tests 55ms, environment 1ms, prepare 1.07s)
+

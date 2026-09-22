@@ -1,0 +1,694 @@
+DIAGNOSTICO, ARQUITECTURA Y PLAN DE MIGRACION
+CRONOPIOS - WEBAPP ACADEMICA
+==============================================
+
+Este documento resume la inspeccion del proyecto existente, el diagnostico
+tecnico, la propuesta de arquitectura, los riesgos y el plan de migracion.
+
+No se modificaron archivos de codigo como parte de este diagnostico.
+
+
+1. STACK DETECTADO
+------------------
+
+- Next.js 14 con App Router.
+- React 18.
+- TypeScript estricto.
+- Tailwind CSS.
+- Supabase SSR y cliente browser.
+- Framer Motion.
+- Lucide React.
+- PDF.js.
+
+La configuracion TypeScript esta en:
+
+- tsconfig.json
+
+Caracteristicas principales:
+
+- strict: true
+- noEmit: true
+- alias @/* para la raiz del proyecto
+- moduleResolution bundler
+
+
+2. RUTAS ACTUALES
+-----------------
+
+Rutas publicas:
+
+- /                         Landing publica.
+- /recorrido                Recorrido estatico de ejemplo.
+- /comunidad                Cartelera estatica.
+- /login                    Login.
+- /registro                 Registro.
+
+Dashboard autenticado:
+
+- /dashboard                Resumen academico.
+- /dashboard/materias       Gestion completa de materias.
+- /dashboard/calendario     Calendario.
+- /dashboard/catedras       Guia de catedras.
+- /dashboard/recorrido      Actualmente no existe.
+
+APIs y autenticacion:
+
+- /api/parse-analitico      Procesamiento de PDF mediante PDF.js.
+- /auth/signout              Cierre de sesion.
+
+
+3. ARQUITECTURA ACTUAL
+----------------------
+
+Layout raiz:
+
+- app/layout.tsx
+- Define las fuentes Inter y Space Grotesk.
+- Define metadata con la marca Trama.
+- Carga app/globals.css.
+
+Layout de autenticacion:
+
+- app/(auth)/layout.tsx
+- Fondo oscuro.
+- Contenedores centrados.
+- Usa blobs desenfocados lilas y coral.
+
+Esto entra en conflicto parcial con la nueva direccion visual, que pide
+evitar blobs desenfocados y gradientes tipo SaaS.
+
+Layout del dashboard:
+
+- app/dashboard/layout.tsx
+- Sidebar fija en desktop.
+- Bottom navigation en mobile.
+- Muestra actualmente la marca trama.
+- Incluye cerrar sesion.
+- No existe aun un header con avatar ni una pantalla de perfil.
+
+Navegacion actual:
+
+- Resumen.
+- Mis materias.
+- Calendario.
+- Guia de catedras.
+
+Navegacion objetivo:
+
+- Inicio.
+- Recorrido.
+- Agenda.
+- Catedras.
+
+Perfil y configuracion deberian abrirse desde el header o avatar.
+
+
+4. COMPONENTES REUTILIZABLES
+----------------------------
+
+components/materias-manager.tsx
+
+Es el componente funcional central. Actualmente concentra:
+
+- Catalogo de materias.
+- Seleccion de plan viejo y plan nuevo.
+- Persistencia del plan en localStorage y cookie.
+- Historial academico.
+- Importacion de PDF, CSV y TXT.
+- Parseo del analitico.
+- Edicion manual.
+- Estados pendiente, regular y aprobada.
+- Notas.
+- Correlatividades.
+- Materias bloqueadas.
+- Leyendas de correlativas.
+- Guardado en user_subjects.
+- Animacion de resaltador fluo.
+
+Debe transformarse en el nucleo de /dashboard/recorrido sin duplicar la
+logica actual.
+
+components/ScrapbookCard.tsx
+
+Implementa:
+
+- Tarjetas tipo recorte.
+- Cinta adhesiva.
+- Rotacion leve.
+- Animacion de entrada.
+- Variantes de color.
+
+Es adecuado para avisos, fechas destacadas y bloques editoriales.
+No conviene usarlo para todas las tarjetas de la interfaz.
+
+components/SubjectItem.tsx
+
+Implementa:
+
+- Checkbox accesible.
+- Resaltador fluorescente.
+- Animacion con Framer Motion.
+- Etiqueta de ano.
+
+Actualmente pertenece al recorrido estatico y no esta conectado a Supabase.
+Puede utilizarse como referencia visual o adaptarse para el recorrido real.
+
+data/catedras.ts
+
+Contiene datos reales de contactos y fuentes oficiales. Debe conservarse.
+
+
+5. ESTILOS ACTUALES
+-------------------
+
+app/globals.css contiene:
+
+- Fondo de papel con textura de puntos.
+- Clase .card.
+- Clase .input.
+- Clase .button-primary.
+- Clase .eyebrow.
+- Animacion .marker-fluo.
+
+tailwind.config.ts contiene actualmente:
+
+- ink
+- paper
+- lime
+- fuchsia
+- cyan
+- cream
+- coral
+- lilac
+- sage
+
+Tokens solicitados para Cronopios:
+
+--cronopios-pink: #FE26A7
+--cronopios-magenta: #F608B8
+--cronopios-green: #19F094
+--cronopios-ink: #221E21
+--cronopios-paper: #F3EDEE
+--white: #FFFFFF
+
+La migracion deberia agregar aliases sin eliminar de inmediato los colores
+existentes, para evitar romper componentes actuales.
+
+
+6. SUPABASE Y ESQUEMA
+---------------------
+
+El esquema principal esta en:
+
+- supabase/mvp-schema.sql
+
+Tablas principales:
+
+profiles
+
+- id
+- full_name
+- degree
+- curriculum
+- timestamps
+
+subjects
+
+- id
+- name
+- code
+- year
+- semester
+- curriculum
+
+correlatives
+
+- subject_id
+- required_subject_id
+
+user_subjects
+
+- user_id
+- subject_id
+- status
+- grade
+- passed_at
+- timestamps
+- constraint unica por usuario y materia
+
+community_posts
+
+- Publicaciones de la comunidad.
+- Politicas RLS configuradas.
+- Existe un helper para consultarlas, pero la pagina actual usa datos
+  estaticos.
+
+RLS:
+
+- profiles limitado por auth.uid().
+- subjects disponible para usuarios autenticados.
+- correlatives disponible para usuarios autenticados.
+- user_subjects limitado al usuario autenticado.
+- community_posts limitado a publicaciones vigentes.
+
+
+7. PROBLEMAS DE CONSISTENCIA
+----------------------------
+
+1. Hay seeds parcialmente duplicados entre:
+
+- supabase/mvp-schema.sql
+- supabase/seed-subjects.sql
+- supabase/seed-curricula.sql
+
+2. La columna curriculum fue agregada posteriormente y puede no existir en
+   instalaciones remotas que no hayan ejecutado todos los scripts.
+
+3. Las definiciones de planes y correlatividades estan repartidas entre
+   varios archivos SQL.
+
+4. Conviene estabilizar el modelo y documentar el orden de ejecucion de
+   scripts antes de ampliar cambios estructurales.
+
+No se recomienda modificar el esquema durante la primera etapa visual.
+
+
+8. DUPLICACION ENTRE RECORRIDOS
+--------------------------------
+
+/recorrido:
+
+- Es publico.
+- Usa materias hardcodeadas.
+- Utiliza SubjectItem.
+- No consulta Supabase.
+- No refleja notas, planes ni correlatividades reales.
+- Es una demo estatica.
+
+/dashboard/materias:
+
+- Es autenticado.
+- Usa Supabase.
+- Incluye los dos planes.
+- Importa analiticos.
+- Maneja notas y estados.
+- Maneja correlatividades.
+- Persiste datos.
+
+Conclusion:
+
+La fuente real debe ser materias-manager.tsx.
+
+La ruta principal futura debe ser:
+
+- /dashboard/recorrido
+
+Durante la migracion:
+
+- /dashboard/materias debe redirigir o renderizar el mismo modulo.
+- /recorrido debe redirigir a login o transformarse en una landing
+  explicativa sin datos academicos falsos.
+
+
+9. PROBLEMAS FUNCIONALES ACTUALES
+---------------------------------
+
+Dashboard:
+
+- Ya filtra avance por el plan seleccionado usando una cookie.
+- Calcula materias aprobadas y promedio.
+- No muestra claramente el nombre del plan.
+- No muestra de forma directa las materias disponibles segun correlativas.
+
+Calendario:
+
+- Usa datos hardcodeados.
+- Muestra diciembre de 2024.
+- La informacion puede estar obsoleta.
+- No consulta community_posts.
+- No tiene estados de carga o error porque no consulta datos.
+
+Esto representa un riesgo porque el producto necesita fechas academicas
+actuales.
+
+Guia de catedras:
+
+- Tiene busqueda funcional.
+- Usa datos reales locales.
+- Conserva fuentes oficiales.
+- No tiene necesariamente todos los datos de sede y horarios.
+
+Comunidad:
+
+- Usa publicaciones hardcodeadas.
+- No reutiliza getPublishedCommunityPosts().
+- Esta fuera del dashboard.
+- No aparece en la navegacion principal.
+
+Autenticacion:
+
+- Login y registro funcionan con Supabase.
+- La marca sigue siendo trama.
+- Los formularios no son componentes compartidos.
+- No hay perfil/configuracion visible.
+- El plan no se selecciona durante el registro.
+- La seleccion de plan se persiste actualmente desde materias mediante
+  localStorage y cookie.
+
+
+10. ARQUITECTURA FUTURA PROPUESTA
+---------------------------------
+
+Rutas:
+
+/
+├── login
+├── registro
+├── dashboard
+│   ├── page.tsx                  Inicio
+│   ├── recorrido
+│   │   └── page.tsx              Recorrido academico principal
+│   ├── agenda
+│   │   └── page.tsx              Agenda academica
+│   ├── catedras
+│   │   └── page.tsx              Guia de catedras
+│   └── perfil
+│       └── page.tsx              Perfil y configuracion
+├── recorrido
+│   └── page.tsx                  Compatibilidad o landing publica
+└── api
+    └── parse-analitico
+        └── route.ts
+
+Compatibilidad temporal:
+
+- /dashboard/materias -> /dashboard/recorrido
+- /dashboard/calendario -> /dashboard/agenda
+
+Las rutas antiguas no deberian desaparecer de inmediato.
+
+
+11. COMPONENTES FUTUROS
+-----------------------
+
+components/
+├── app-shell/
+│   ├── dashboard-shell.tsx
+│   ├── desktop-sidebar.tsx
+│   ├── mobile-bottom-nav.tsx
+│   ├── dashboard-header.tsx
+│   └── profile-menu.tsx
+├── academic/
+│   ├── academic-overview.tsx
+│   ├── curriculum-selector.tsx
+│   ├── curriculum-year-section.tsx
+│   ├── subject-row.tsx
+│   ├── subject-status-control.tsx
+│   ├── prerequisite-lock.tsx
+│   ├── progress-summary.tsx
+│   ├── grade-summary.tsx
+│   └── analytic-importer.tsx
+├── agenda/
+│   ├── academic-event-card.tsx
+│   └── events-empty-state.tsx
+├── catedras/
+│   ├── catedra-search.tsx
+│   ├── catedra-card.tsx
+│   └── catedra-filters.tsx
+└── scrapbook/
+    ├── tape.tsx
+    ├── paper-label.tsx
+    ├── halftone.tsx
+    ├── marker-highlight.tsx
+    └── editorial-heading.tsx
+
+Capas de datos futuras:
+
+lib/
+├── academic/
+│   ├── curriculum.ts
+│   ├── progress.ts
+│   ├── prerequisites.ts
+│   └── subject-status.ts
+├── supabase/
+│   ├── browser.ts
+│   ├── server.ts
+│   ├── mvp-queries.ts
+│   └── profile-queries.ts
+└── analytics/
+    └── analytic-parser.ts
+
+
+12. NAVEGACION PROPUESTA
+------------------------
+
+Mobile:
+
+Bottom navigation con solo:
+
+1. Inicio.
+2. Recorrido.
+3. Agenda.
+4. Catedras.
+
+Requisitos:
+
+- Altura minima de 64px.
+- Areas tactiles de al menos 44px.
+- Estado activo visible.
+- Perfil fuera de la navegacion principal.
+- Avatar o boton de usuario en el header.
+
+Desktop:
+
+- Rail o sidebar editorial.
+- Marca Cronopios.
+- Inicio.
+- Recorrido.
+- Agenda.
+- Catedras.
+- Separador.
+- Avatar y nombre.
+- Perfil/configuracion.
+- Cerrar sesion.
+
+
+13. MIGRACION DE IDENTIDAD
+---------------------------
+
+La marca trama aparece en:
+
+- app/page.tsx
+- app/dashboard/layout.tsx
+- app/(auth)/login/page.tsx
+- app/(auth)/registro/page.tsx
+- Metadata de app/layout.tsx
+
+Propuesta:
+
+1. Crear un componente BrandMark.
+2. Reemplazar gradualmente trama por Cronopios.
+3. Actualizar metadata.
+4. No cambiar toda la interfaz en una sola etapa.
+5. Mantener Facultad de Artes como contexto, no como identidad dominante.
+
+
+14. SISTEMA VISUAL PROPUESTO
+----------------------------
+
+Agregar aliases:
+
+cronopios-pink
+cronopios-magenta
+cronopios-green
+cronopios-ink
+cronopios-paper
+
+Regla aproximada 80/20:
+
+80 por ciento interfaz limpia:
+
+- Formularios.
+- Tablas y listas.
+- Selectores.
+- Notas.
+- Errores.
+- Textos extensos.
+- Navegacion.
+
+20 por ciento recursos expresivos:
+
+- Encabezados.
+- Etiquetas.
+- Separadores.
+- Cintas.
+- Sombras solidas.
+- Halftone sutil.
+- Estados destacados.
+- Tarjetas editoriales.
+
+No usar scrapbook detras de textos largos ni en cada componente.
+
+
+15. RIESGOS
+-----------
+
+Riesgos altos:
+
+1. Cambio de rutas.
+
+Puede romper enlaces, favoritos, redirecciones y pruebas manuales.
+
+Mitigacion:
+
+- Mantener redirects temporales.
+
+2. Datos de dos planes.
+
+user_subjects no guarda explicitamente el plan. El plan se deduce por
+subject_id.
+
+Hay que cuidar:
+
+- Cambio de plan.
+- Importacion de un analitico viejo en el plan nuevo.
+- Materias equivalentes entre planes.
+
+3. Correlatividades alternativas.
+
+El plan nuevo incluye opciones y recorridos alternativos. Una regla simple
+de "todas las correlativas" puede ser insuficiente para modelar:
+
+- Opciones A o B.
+- Nucleos completos.
+- Recorridos alternativos.
+- Seminarios optativos.
+
+Riesgos medios:
+
+- Calendario obsoleto.
+- Migracion parcial de la marca.
+- Componente materias-manager.tsx demasiado grande.
+
+Riesgos bajos:
+
+- Homogeneidad visual entre tarjetas.
+
+
+16. PLAN DE MIGRACION INCREMENTAL
+---------------------------------
+
+Fase 0 - Baseline
+
+- Ejecutar npm.cmd run build.
+- Ejecutar lint disponible.
+- Verificar login.
+- Verificar dashboard.
+- Verificar recorrido.
+- Verificar importacion PDF.
+- Verificar cambio de plan.
+- Verificar correlatividades.
+- Confirmar rutas actuales.
+
+Fase 1 - Shell y marca
+
+Archivos principales:
+
+- app/layout.tsx
+- app/dashboard/layout.tsx
+- app/(auth)/layout.tsx
+- app/globals.css
+- Nuevo components/app-shell/dashboard-header.tsx
+- Nuevo components/app-shell/mobile-bottom-nav.tsx
+- Nuevo components/brand-mark.tsx
+
+Objetivos:
+
+- Implementar marca Cronopios.
+- Ajustar tokens.
+- Eliminar blobs.
+- Mantener rutas y logica.
+
+Fase 2 - Navegacion
+
+- Mobile con Inicio, Recorrido, Agenda y Catedras.
+- Sidebar editorial en desktop.
+- Perfil/configuracion desde avatar.
+- Redirects temporales para rutas antiguas.
+
+Fase 3 - Recorrido academico
+
+- Crear /dashboard/recorrido.
+- Renderizar el contenido real de MateriasManager.
+- Reutilizar la logica actual.
+- Mantener /dashboard/materias como compatibilidad.
+- Eliminar progresivamente el recorrido estatico hardcodeado.
+
+Fase 4 - Inicio academico
+
+Mostrar rapidamente:
+
+- Avance.
+- Promedio.
+- Materias disponibles.
+- Proxima fecha.
+
+Reutilizar consultas existentes y no duplicar reglas.
+
+Fase 5 - Agenda y catedras
+
+- Redisenar visualmente sin inventar datos.
+- Mantener contactos oficiales.
+- Definir fuente de fechas antes de mostrarlas como actuales.
+- Separar componentes de agenda y catedras.
+
+Fase 6 - Refactor interno
+
+Extraer gradualmente de materias-manager.tsx:
+
+- Selector de plan.
+- Filtro de materias.
+- Estado de materia.
+- Reglas de correlatividad.
+- Importador de analitico.
+- Resumen de avance.
+
+Cada extraccion debe conservar los mismos tipos y comportamiento.
+
+Fase 7 - Validacion
+
+Despues de cada fase:
+
+- npm.cmd run build
+- npm.cmd run lint
+
+Ademas probar:
+
+- TypeScript.
+- Responsive mobile.
+- Navegacion.
+- Login y logout.
+- Cambio de plan.
+- Importacion.
+- Destildado.
+- Notas.
+- Correlatividades.
+- Dashboard con ambos planes.
+
+
+17. RECOMENDACION
+-----------------
+
+La primera implementacion recomendada es la Fase 1:
+
+- Shell.
+- Navegacion.
+- Marca.
+- Tokens visuales.
+
+Esto permite establecer la identidad Cronopios sin tocar inicialmente la
+logica academica.
+
+Luego conviene migrar el recorrido real a /dashboard/recorrido, manteniendo
+/dashboard/materias como ruta compatible hasta comprobar que todas las
+funciones siguen operativas.

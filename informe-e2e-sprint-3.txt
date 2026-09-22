@@ -1,0 +1,239 @@
+INFORME E2E — SPRINT 3
+Fecha de ejecución: 21/09/2026 (America/Buenos_Aires)
+Entorno: aplicación local contra Supabase remoto
+Alcance: validación únicamente. No se implementó Sprint 4.
+
+RESULTADO GENERAL
+
+Sprint 3 funciona de punta a punta para importar, publicar y mostrar calendario y horarios, pero NO cumple todavía todos los criterios de aceptación. Se encontraron cuatro defectos que conviene corregir antes de iniciar Sprint 4:
+
+1. Los imports de horarios no son idempotentes en records_changed: la segunda ejecución informa 12/12 y 16/16 cambios aunque conserva los mismos registros y no crea duplicados.
+2. La external_key del calendario cambia ante diferencias irrelevantes de mayúsculas o espacios.
+3. lib/supabase/admin.ts no declara explícitamente `import "server-only"`.
+4. Un parser que devuelve cero filas conserva correctamente los datos, pero no genera el warning requerido.
+
+1. MIGRACIÓN REMOTA
+
+Resultado: APROBADO (confirmación funcional sobre el Supabase remoto).
+
+La estructura y los datos creados por supabase/migrations/20260921110000_sprint3_fda_data.sql están presentes y operativos en el remoto. Se consultaron correctamente data_sources, import_runs, academic_events y course_schedules. Al cierre quedaron:
+
+- academic_events: 8 registros (7 published, 1 draft).
+- course_schedules: 28 registros (28 published).
+- Los import_runs reales quedaron registrados, incluidos los ids 27 a 32 usados en esta validación.
+
+2. VARIABLES SERVER-SIDE
+
+Resultado: APROBADO.
+
+- CRONOPIOS_ADMIN_EMAILS: configurada y no vacía.
+- SUPABASE_SERVICE_ROLE_KEY: configurada y no vacía.
+
+No se copiaron valores secretos al informe ni a los artefactos de prueba.
+
+3. AISLAMIENTO DE SUPABASE_SERVICE_ROLE_KEY
+
+Resultado: PARCIAL / REQUIERE CORRECCIÓN.
+
+Todas las llamadas detectadas al cliente administrativo parten de rutas o componentes de servidor. La interfaz cliente de /admin/imports llama a endpoints y no importa la clave directamente. Además, se inspeccionaron 34 archivos JavaScript del build de producción:
+
+- valor de SUPABASE_SERVICE_ROLE_KEY encontrado en bundles cliente: NO.
+- nombre CRONOPIOS_ADMIN_EMAILS encontrado en bundles cliente: NO.
+
+Defecto: lib/supabase/admin.ts no contiene la barrera explícita `import "server-only"`. El secreto no se filtró en el build actual, pero falta la protección preventiva solicitada.
+
+4. RLS REAL EN SUPABASE REMOTO
+
+Resultado: APROBADO.
+
+Se crearon fixtures temporales draft y un usuario autenticado normal. Al terminar se eliminaron todos los fixtures y el usuario de prueba.
+
+Usuario anónimo:
+
+- Puede leer academic_events published: SÍ (7 visibles).
+- Puede leer course_schedules published: SÍ (28 visibles).
+- Puede leer drafts: NO (0 visibles).
+- Puede insertar: NO; PostgreSQL 42501 por RLS.
+- Puede actualizar o borrar drafts/published: NO; 0 filas afectadas.
+- Puede leer import_runs: NO; 0 visibles.
+- Puede invocar el endpoint administrativo: NO; HTTP 403.
+
+Usuario autenticado normal:
+
+- Mismas restricciones de publicación: SÍ.
+- Drafts visibles: 0.
+- Escrituras: rechazadas o 0 filas afectadas.
+- import_runs visibles: 0.
+- Permiso administrativo por estar logueado: NO; endpoint HTTP 403.
+
+5 Y 6. IMPORTS REALES DESDE /admin/imports
+
+academic-calendar-2026-second
+
+- Primera ejecución, run 27: records_found 8; records_changed 0; warnings 0; drafts generados/presentes 2.
+- Segunda ejecución, run 30: records_found 8; records_changed 0; warnings 0.
+- Mismatches con subjects: no aplica a academic_events.
+- Checksum idéntico en ambas ejecuciones: d8d6bdba937f0759790151c2406503f82ca1c0516e00575e8ecbd5453b8f7199.
+
+multimedia-schedules-new-second
+
+- Primera ejecución, run 28: records_found 12; records_changed 12; warnings 0; drafts 0.
+- Segunda ejecución, run 31: records_found 12; records_changed 12; warnings 0.
+- Mismatches: 11 de 12 registros quedaron sin subject_id.
+- Checksum idéntico: 96211f93e9b21f060c3c94d397281dd31d2783a2f0d55b1e700db8536565fa6d.
+
+multimedia-schedules-old
+
+- Primera ejecución, run 29: records_found 16; records_changed 16; warnings 0; drafts 0.
+- Segunda ejecución, run 32: records_found 16; records_changed 16; warnings 0.
+- Mismatches: 8 de 16 registros quedaron sin subject_id.
+- Checksum idéntico: 32a444a5beab0244691c8589b20eaf2fede722d3a7df4a8509d102f43cb5b032.
+
+Los nombres sin match incluyen abreviaturas y variantes como "Int. a los medios digitales", "Lenguaje multimedial 1", "Taller de diseño multimedial 1" y "Tecnología multimedial 1". En el plan se usan nombres completos y/o números romanos. También se observó que algunas denominaciones largas quedan partidas entre nombre y notas, lo que reduce el matching.
+
+7. REVISIÓN VISUAL DE DRAFTS Y FUENTES
+
+Resultado: REALIZADA.
+
+Se revisó visualmente el PDF oficial del calendario, las planillas de horarios y la pantalla de drafts. El calendario produjo inicialmente 2 drafts:
+
+- Receso de invierno: 20 al 31 de julio. Sigue draft porque no tiene start_date y quedó como tipo other.
+- Llamado: 24 al 29 de agosto. Fue revisado y publicado manualmente.
+
+Hallazgos visuales/de calidad:
+
+- Algunas inscripciones pertenecientes a la sección de mesas de examen quedan tipificadas como course_registration en vez de final_registration.
+- La línea "del 3 al 9 de agosto" queda como other y pierde contexto en el título.
+- Las planillas contienen nombres abreviados o partidos que explican parte de los subject_id faltantes.
+- Las columnas cuyo encabezado de día queda vacío por continuidad visual en la planilla pueden ser omitidas por el parser si no se propaga el último día válido.
+
+8. PUBLICACIÓN MANUAL REPRESENTATIVA
+
+Resultado: APROBADO CON OBSERVACIÓN.
+
+- Se publicó manualmente desde la interfaz el evento "Llamado: 24 al 29 de agosto.". El estado remoto final es published.
+- Se revisaron y reafirmaron horarios publicados con subject_id y sin subject_id.
+- Se verificaron múltiples comisiones/horarios para una misma materia, visibles públicamente; por ejemplo Historia Social General y Tecnología Multimedial I.
+- Todos los 28 horarios ya estaban published al iniciar esta parte de la validación, por lo que no había drafts de horarios pendientes para cambiar de estado.
+
+9. VALIDACIÓN ANÓNIMA
+
+Resultado: APROBADO.
+
+/agenda:
+
+- Accesible sin sesión.
+- Muestra únicamente eventos published.
+- Muestra 7 eventos, incluido el evento publicado durante la revisión.
+- La próxima fecha visible es "Inscripción: 2 al 8 de noviembre." con fuente "Secretaría Académica FDA".
+
+/catedras:
+
+- Accesible sin sesión.
+- Muestra 28 resultados y horarios publicados.
+- Muestra registros vinculados a cátedras, registros sin contacto específico y una sección para horarios todavía no vinculados.
+- Se observaron varias comisiones para materias que las tienen.
+
+10. VALIDACIÓN AUTENTICADA DE /dashboard
+
+Resultado: APROBADO.
+
+Con una sesión válida, /dashboard cargó correctamente. El bloque "Próxima fecha" mostró "Inscripción: 2 al 8 de noviembre.", rango 2026-11-02 a 2026-11-08 y fuente "Secretaría Académica FDA". Se contrastó con el registro remoto de academic_events. No proviene de un mock.
+
+11. EXTERNAL_KEY
+
+Resultado: PARCIAL / REQUIERE CORRECCIÓN.
+
+Horarios:
+
+- Se construye a partir de campos semánticos: nombre, día, hora de inicio y comisión.
+- Normaliza espacios, mayúsculas/minúsculas y acentos.
+- La prueba de variación de whitespace/capitalización mantiene la misma external_key: APROBADO.
+
+Calendario:
+
+- Incluye el texto crudo de la línea junto con fechas.
+- Un cambio irrelevante de whitespace/capitalización produce una external_key distinta: REPROBADO.
+- Riesgo: duplicación de eventos si la fuente cambia sólo su formato textual.
+
+12. SEGUNDA EJECUCIÓN SIN CAMBIOS
+
+Resultado: PARCIAL.
+
+Comportamiento correcto comprobado:
+
+- academic_events: mismos 8 ids, 0 external_key duplicadas, 0 cambios de negocio, last_seen_at avanzó en los 8 registros.
+- course_schedules: mismos 28 ids, 0 external_key duplicadas, 0 cambios de negocio, last_seen_at avanzó en los 28 registros.
+- No se crearon entidades duplicadas.
+
+Criterio records_changed:
+
+- Calendario: 0, APROBADO.
+- Horarios plan nuevo: 12, REPROBADO para el objetivo ideal de 0.
+- Horarios plan viejo: 16, REPROBADO para el objetivo ideal de 0.
+
+La comparación de estado confirma que no hubo cambios de negocio. El contador parece considerar distintos valores equivalentes, probablemente horas del parser como HH:MM frente a horas persistidas como HH:MM:SS.
+
+13. PARSER QUE DEVUELVE CERO FILAS
+
+Resultado: PARCIAL / REQUIERE CORRECCIÓN.
+
+La prueba simuló un import válido previo y luego un parser con cero filas:
+
+- Conserva toda la información publicada: SÍ.
+- No marca los registros como stale automáticamente: SÍ.
+- Devuelve estado warning y records_found 0: SÍ.
+- Genera una advertencia en warnings: NO; el arreglo queda vacío.
+
+El requisito de protección de datos se cumple, pero falta emitir y persistir un mensaje de warning útil.
+
+14. PRUEBAS Y BUILD
+
+npm.cmd test: REPROBADO por 3 pruebas de aceptación encontradas durante esta auditoría.
+
+- 7 archivos de prueba ejecutados: 6 aprobados, 1 con fallas.
+- 17 tests ejecutados: 14 aprobados, 3 fallidos.
+- Fallas: normalización de external_key del calendario; falta de barrera server-only; falta de warning explícito cuando el parser devuelve cero filas.
+
+npm.cmd run build: APROBADO.
+
+- Build de producción completado.
+- 22 páginas generadas.
+- Rutas públicas, dashboard, admin y endpoints administrativos compilados correctamente.
+- Escaneo posterior del bundle cliente sin exposición del secreto.
+
+ARTEFACTOS DE EVIDENCIA
+
+- output/sprint3-e2e/final-state.json: estado remoto final.
+- output/sprint3-e2e/round-one.json y round-two.json: snapshots de ambas rondas.
+- output/sprint3-e2e/idempotence.json: comparación de ids, duplicados, cambios y last_seen_at.
+- output/sprint3-e2e/import-summary.json: métricas por fuente y mismatches.
+- output/sprint3-e2e/rls.json: matriz real de permisos anónimo/autenticado.
+- output/sprint3-e2e/publication.json: muestra de publicación revisada.
+- output/sprint3-e2e/bundle-scan.json: escaneo del bundle.
+- output/sprint3-e2e/tests.txt: salida completa de tests.
+- output/sprint3-e2e/build.txt: salida completa del build.
+- output/sprint3-e2e/calendar.png, calendar.pdf, new.csv y old.csv: fuentes usadas para la revisión visual.
+
+DECISIÓN RECOMENDADA
+
+No iniciar Sprint 4 todavía. Corregir los cuatro defectos del resultado general y volver a ejecutar esta batería. RLS, ausencia de duplicados, preservación frente a cero filas, vistas públicas y dashboard ya quedaron validados satisfactoriamente.
+
+ACTUALIZACIÓN POSTERIOR — CORRECCIONES APLICADAS
+
+Fecha: 21/09/2026
+
+Los cuatro defectos de este informe fueron corregidos:
+
+1. La comparación de imports ahora normaliza horas HH:MM y HH:MM:SS antes de calcular records_changed. Se agregó una prueba de regresión que confirma que 08:00 y 08:00:00 son equivalentes.
+2. La external_key del calendario ahora normaliza espacios, mayúsculas/minúsculas y acentos antes de calcular el hash.
+3. lib/supabase/admin.ts ahora incluye explícitamente `import "server-only"`.
+4. Un import que devuelve cero filas ahora agrega un warning explícito, conserva los datos existentes y no marca registros como stale.
+
+Validación posterior:
+
+- npm.cmd test: APROBADO; 7 archivos y 18 tests aprobados.
+- npm.cmd run build: APROBADO; compilación, lint, tipos y generación de 22 páginas completados.
+- No se implementó Sprint 4.
+
+La repetición remota desde /admin/imports no se volvió a ejecutar en esta actualización porque la sesión administradora había expirado. La equivalencia que causaba los falsos records_changed quedó cubierta por una prueba de regresión sobre la misma función que usa la ruta real.

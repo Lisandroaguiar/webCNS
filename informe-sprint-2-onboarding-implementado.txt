@@ -1,0 +1,203 @@
+MESITA VIRTUAL — INFORME SPRINT 2
+Onboarding + importación segura de analítico + carga manual inicial
+
+1. RESUMEN FUNCIONAL
+
+Se implementó la ruta autenticada /onboarding. El estudiante puede elegir entre:
+
+- Subir un PDF de analítico generado por SIU Guaraní.
+- Elegir carrera y plan para comenzar una carga manual.
+
+La importación procesa el PDF en el servidor usando PDF.js y devuelve únicamente
+datos académicos estructurados. La revisión permite confirmar carrera, plan,
+materias, notas y fechas antes de persistir.
+
+No se modificó el esquema Supabase, no se implementó scraping, OCR, Web Push ni
+correlatividades nuevas.
+
+2. FLUJO EXACTO DE ONBOARDING
+
+1. Un usuario no autenticado es redirigido a /login.
+2. El usuario autenticado entra a /onboarding.
+3. Ve "Armemos tu recorrido" y dos caminos:
+   - Subir mi analítico.
+   - Cargar a mano.
+4. En carga manual selecciona carrera y plan, se actualiza profiles y puede
+   continuar en /dashboard/recorrido sin materias cargadas.
+5. En importación selecciona únicamente un PDF.
+6. La API valida tipo y tamaño, extrae texto con PDF.js y parsea el documento.
+7. Se detectan carrera y plan cuando aparecen en el texto.
+8. Se consulta el catálogo subjects del plan detectado.
+9. Se clasifican las filas como EXACT, PROBABLE o UNMATCHED.
+10. El usuario revisa, corrige o ignora filas.
+11. Al confirmar se actualizan profiles y se hace upsert de user_subjects.
+12. El usuario es enviado a /dashboard.
+
+3. ARCHIVOS CREADOS
+
+- lib/academic/curriculum.ts
+  Mapping entre labels visibles y valores internos de carrera/plan.
+- lib/academic/analytic-parser.ts
+  Tipos y parser estructurado del analítico.
+- lib/academic/match-analytic-subjects.ts
+  Normalización y matching EXACT/PROBABLE/UNMATCHED.
+- components/onboarding/onboarding-shell.tsx
+  Flujo interactivo de onboarding, carga manual, revisión y guardado.
+- app/onboarding/page.tsx
+  Página autenticada del onboarding.
+- informe-sprint-2-onboarding-implementado.txt
+  Este informe.
+
+4. ARCHIVOS MODIFICADOS
+
+- app/api/parse-analitico/route.ts
+  Mantiene PDF.js, valida PDF y tamaño máximo de 10 MB, parsea en servidor y
+  devuelve solo el modelo académico seguro.
+- middleware.ts
+  Protege /onboarding además de /dashboard.
+
+5. DETECCIÓN DE CARRERA
+
+Se normaliza el texto quitando acentos y se buscan los encabezados:
+
+- "LICENCIATURA EN DISEÑO MULTIMEDIAL"
+- "PROFESORADO EN DISEÑO MULTIMEDIAL"
+
+El valor interno de la UI es licenciatura o profesorado. Al guardar se usa el
+texto compatible con profiles.degree:
+
+- "Licenciatura en Diseño Multimedial"
+- "Profesorado en Diseño Multimedial"
+
+No se fuerza que Diseño Multimedial sea una única carrera.
+
+6. DETECCIÓN DE PLAN
+
+Se busca "Plan: 2006", "Plan: 2023" o "Plan: 2024".
+
+- 2006 se mapea al valor interno old.
+- 2023 y 2024 se mapean al valor interno new.
+
+Los labels visibles son "Plan 2006" y "Plan 2024". Se conserva la compatibilidad
+con subjects.curriculum y profiles.curriculum existentes.
+
+7. ALGORITMO DE FILAS MULTILÍNEA
+
+El parser recorre las líneas de la sección Aprobadas. Una línea se considera
+parte de una fila cuando contiene una nota o una fecha DD/MM/YYYY. Para soportar
+nombres partidos, combina hasta las dos líneas anteriores, elimina encabezados
+de columnas y conserva:
+
+- rawName
+- grade
+- passedAt en formato YYYY-MM-DD
+- recordNumber cuando aparece un número de acta
+
+No se asume que una línea equivale a una materia.
+
+8. ESTRATEGIA DE MATCHING
+
+normalizeSubjectName:
+
+- elimina acentos;
+- pasa a minúsculas;
+- elimina puntuación irrelevante;
+- compacta espacios.
+
+Clasificación:
+
+- EXACT: nombre normalizado idéntico. Queda seleccionado.
+- PROBABLE: similitud por tokens igual o superior a 0.55. Requiere revisión.
+- UNMATCHED: no alcanza el umbral. Se puede ignorar o vincular desde un selector.
+
+Nunca se crean materias nuevas desde el navegador.
+
+9. ESTRATEGIA DE MERGE CON user_subjects
+
+Se reutiliza saveUserSubject existente y su upsert con conflicto:
+
+user_id, subject_id
+
+Las filas confirmadas se guardan como:
+
+- status = passed
+- grade si existe
+- passed_at si existe
+
+No se borran materias que no aparecen en el analítico. Las filas ignoradas no se
+persisten. El guardado ocurre solamente después de confirmar la revisión.
+
+10. DATOS DESCARTADOS POR PRIVACIDAD
+
+La API no devuelve el texto completo del PDF al navegador. Solo devuelve:
+
+- carrera detectada;
+- plan detectado;
+- materias;
+- nota;
+- fecha;
+- número de acta cuando existe;
+- métricas académicas;
+- warnings.
+
+No se persisten ni se devuelven DNI, nombre completo, código de validación u
+otros identificadores personales. El PDF no se guarda en Supabase ni en el
+repositorio; se procesa en memoria durante la request.
+
+11. VALIDACIONES Y CASOS DE ERROR
+
+Se cubren visualmente:
+
+- selección inicial;
+- archivo seleccionado;
+- procesamiento;
+- éxito;
+- warning;
+- tipo de archivo no permitido;
+- PDF mayor a 10 MB;
+- PDF ilegible;
+- ninguna materia encontrada;
+- carrera no detectada;
+- plan no detectado;
+- matching parcial;
+- guardando;
+- error de guardado.
+
+Los mensajes indican cómo continuar: reintentar o cargar a mano.
+
+12. TESTS
+
+No había infraestructura de tests configurada en el proyecto y no se agregaron
+dependencias nuevas ni fixtures, para evitar complejidad desproporcionada en este
+sprint. El parser quedó separado y tipado para agregar tests sintéticos en el
+siguiente ciclo.
+
+13. RESULTADO DEL BUILD
+
+Comando ejecutado:
+
+npm.cmd run build
+
+Resultado: exitoso.
+
+Next.js compiló, validó TypeScript, generó las páginas y produjo la ruta:
+
+/onboarding
+
+No se ejecutó npm run lint porque el proyecto no tiene configuración ESLint y
+Next.js abre un asistente interactivo; no se agregó ESLint en este sprint.
+
+14. DEUDA TÉCNICA RESTANTE
+
+- El parser debe probarse con más variantes reales anonimizadas de PDFs de SIU.
+- La detección de filas puede requerir ajustes para documentos con orden de texto
+  especialmente fragmentado.
+- El matching todavía usa similitud por tokens y no aliases académicos curados.
+- La comparación de promedio informado contra promedio calculado queda preparada
+  como warning futuro, pero no bloquea el guardado.
+- La ruta aún no redirige automáticamente a usuarios con onboarding completo;
+  pueden entrar nuevamente y editar/importar desde /dashboard/recorrido.
+- MateriasManager no fue refactorizado profundamente, tal como se solicitó.
+- No se modificaron tablas, correlatividades ni planes remotos.
+
+No se avanzó al Sprint 3.

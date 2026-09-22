@@ -1,0 +1,389 @@
+INFORME SPRINT 1
+MESITA VIRTUAL - CRONOPIOS
+==========================
+
+Se implemento el Sprint 1 sin modificar el esquema de Supabase, las
+correlatividades, el procesamiento PDF, OCR, scraping ni Web Push.
+
+
+BASELINE
+--------
+
+Antes de modificar el proyecto se ejecuto:
+
+    npm.cmd run build
+
+Resultado inicial: compilacion exitosa.
+
+
+CAMBIOS PRINCIPALES
+--------------------
+
+1. NUEVA MARCA: MESITA VIRTUAL
+
+Se elimino visualmente la marca "trama." de las superficies activas y se
+creo un componente reutilizable:
+
+    components/brand/brand-mark.tsx
+
+La marca muestra:
+
+    MESITA VIRTUAL
+    por Cronopios
+
+Se utiliza en:
+
+- Landing.
+- Login.
+- Registro.
+- Sidebar desktop.
+- Header mobile y desktop.
+
+Tambien se actualizo la metadata en:
+
+    app/layout.tsx
+
+Nuevo titulo:
+
+    Mesita Virtual — Cronopios
+
+
+2. SISTEMA VISUAL CRONOPIOS
+
+Se agregaron tokens nuevos a Tailwind en:
+
+    tailwind.config.ts
+
+Tokens:
+
+- cronopios-pink
+- cronopios-magenta
+- cronopios-green
+- cronopios-ink
+- cronopios-paper
+
+Tambien se agregaron variables CSS y soporte para:
+
+- prefers-reduced-motion.
+- Foco visible.
+- Contraste mas claro.
+- Bordes negros.
+- Sombras solidas.
+- Papel y recursos editoriales.
+
+Archivo actualizado:
+
+    app/globals.css
+
+Se eliminaron los blobs desenfocados del layout de autenticacion sin
+modificar la logica de Supabase.
+
+
+3. LANDING PUBLICA
+
+Se rediseño:
+
+    app/page.tsx
+
+Ahora incluye:
+
+- Header con Mesita Virtual.
+- Links publicos a Agenda y Catedras.
+- Acceso a Ingresar.
+- Hero orientado a utilidad.
+- CTA "Armar mi recorrido".
+- CTA "Ya tengo cuenta".
+- Acceso rapido a Buscar una catedra.
+- Acceso rapido a Ver proximas fechas.
+- Firma de Cronopios, Centro de Estudiantes y Facultad de Artes.
+
+La landing mantiene una composicion editorial sin convertirse en un flyer
+saturado.
+
+
+4. NAVEGACION MOBILE
+
+Se creo:
+
+    components/app-shell/mobile-bottom-nav.tsx
+
+La navegacion mobile tiene solamente:
+
+1. Inicio.
+2. Recorrido.
+3. Agenda.
+4. Catedras.
+
+Caracteristicas:
+
+- Areas tactiles adecuadas.
+- Estado activo visible por color y tipografia.
+- Perfil fuera de la bottom navigation.
+- Compatibilidad con safe area inferior del dispositivo.
+
+
+5. DASHBOARD SHELL
+
+Se actualizo:
+
+    app/dashboard/layout.tsx
+
+Ahora incluye:
+
+- Sidebar editorial en desktop.
+- Marca Mesita Virtual.
+- Inicio.
+- Recorrido.
+- Agenda.
+- Catedras.
+- Perfil y configuracion.
+- Cerrar sesion.
+- Bottom navigation mobile.
+- Header con avatar.
+
+Componentes creados:
+
+- components/app-shell/dashboard-header.tsx
+- components/app-shell/public-header.tsx
+
+
+6. NUEVA RUTA ACADEMICA PRINCIPAL
+
+Se creo:
+
+    app/dashboard/recorrido/page.tsx
+
+Esta ruta reutiliza el MateriasManager existente y conserva:
+
+- Importacion de analiticos.
+- Carga manual.
+- Notas.
+- Estados.
+- Correlatividades.
+- Materias bloqueadas.
+- Plan viejo y plan nuevo.
+- Persistencia en Supabase.
+
+No se refactorizo profundamente MateriasManager.
+
+
+7. COMPATIBILIDAD DE RUTAS ANTIGUAS
+
+Se mantienen rutas existentes mediante redirecciones:
+
+- /dashboard/materias -> /dashboard/recorrido
+- /dashboard/calendario -> /agenda
+- /dashboard/catedras -> /catedras
+- /recorrido -> /login
+
+Archivos modificados:
+
+- app/dashboard/materias/page.tsx
+- app/dashboard/calendario/page.tsx
+- app/dashboard/catedras/page.tsx
+- app/recorrido/page.tsx
+
+No se eliminaron los links antiguos.
+
+
+8. AGENDA PUBLICA
+
+Se creo:
+
+    app/agenda/page.tsx
+
+La agenda es publica y no muestra fechas antiguas como diciembre de 2024.
+
+Tambien se creo:
+
+    components/dashboard/academic-deadline-card.tsx
+
+Cuando no hay una fuente actual disponible muestra:
+
+    Estamos actualizando las proximas fechas
+
+La misma tarjeta se utiliza en el dashboard.
+
+
+9. CATEDRAS PUBLICAS
+
+Se creo:
+
+    app/catedras/page.tsx
+
+La busqueda y las tarjetas reales fueron extraidas a:
+
+    components/catedras-directory.tsx
+
+La pagina conserva:
+
+- Datos reales.
+- Contactos.
+- Docentes.
+- Enlaces oficiales.
+- Busqueda por materia, area y contacto.
+- Fuentes institucionales.
+
+La pagina privada anterior redirige a la pagina publica.
+
+
+10. DASHBOARD
+
+Se actualizo:
+
+    app/dashboard/page.tsx
+
+Se mantiene la logica existente de:
+
+- Porcentaje de avance.
+- Promedio.
+- Materias aprobadas.
+- Filtro por plan seleccionado.
+- Historial del usuario.
+
+Ademas:
+
+- La tarjeta de fechas ya no tiene contenido obsoleto.
+- El acceso principal apunta a /dashboard/recorrido.
+- El dashboard usa AcademicDeadlineCard.
+
+
+11. AUTENTICACION
+
+Se actualizaron visualmente:
+
+- app/(auth)/login/page.tsx
+- app/(auth)/registro/page.tsx
+- app/(auth)/layout.tsx
+
+Se conservaron:
+
+- Supabase Auth.
+- Login.
+- Registro.
+- Redirecciones.
+- Mensajes de error.
+- Estados de carga.
+
+Se elimino la estetica anterior de "trama." y los blobs desenfocados.
+
+
+12. PERFIL
+
+Se creo:
+
+    app/dashboard/perfil/page.tsx
+
+Por ahora permite:
+
+- Ver el email de la sesion.
+- Acceder nuevamente al recorrido.
+- Mantener preparado el espacio para configuracion futura.
+
+No se modifico el esquema de perfiles.
+
+
+ARCHIVOS CREADOS
+----------------
+
+- components/brand/brand-mark.tsx
+- components/app-shell/public-header.tsx
+- components/app-shell/dashboard-header.tsx
+- components/app-shell/mobile-bottom-nav.tsx
+- components/dashboard/academic-deadline-card.tsx
+- components/catedras-directory.tsx
+- app/agenda/page.tsx
+- app/catedras/page.tsx
+- app/dashboard/recorrido/page.tsx
+- app/dashboard/perfil/page.tsx
+
+
+ARCHIVOS MODIFICADOS
+--------------------
+
+- app/layout.tsx
+- app/page.tsx
+- app/globals.css
+- tailwind.config.ts
+- app/(auth)/layout.tsx
+- app/(auth)/login/page.tsx
+- app/(auth)/registro/page.tsx
+- app/dashboard/layout.tsx
+- app/dashboard/page.tsx
+- app/dashboard/materias/page.tsx
+- app/dashboard/calendario/page.tsx
+- app/dashboard/catedras/page.tsx
+- app/recorrido/page.tsx
+
+
+VALIDACION
+----------
+
+Se ejecuto:
+
+    npm.cmd run build
+
+Resultado:
+
+    Compiled successfully
+
+Se generaron correctamente las rutas:
+
+- /
+- /agenda
+- /catedras
+- /dashboard
+- /dashboard/recorrido
+- /dashboard/perfil
+- /dashboard/materias
+- /dashboard/calendario
+- /dashboard/catedras
+- /login
+- /registro
+
+Lint:
+
+Se ejecuto:
+
+    npm.cmd run lint
+
+El comando no pudo continuar porque el proyecto no tiene configuracion
+ESLint y Next.js abrio el asistente interactivo para crearla.
+
+No fue un error de lint del codigo. El proyecto no tenia .eslintrc
+configurado y no se agrego una configuracion automaticamente.
+
+
+DEUDA TECNICA PENDIENTE
+-----------------------
+
+- El selector de carrera todavia no esta implementado.
+- La seleccion de plan sigue usando localStorage y cookie.
+- No se modifico el esquema para persistir carrera y plan de forma completa.
+- Las correlatividades del plan nuevo siguen usando el modelo existente.
+- El calendario necesita una fuente oficial actualizable.
+- El progreso por año todavia no esta implementado como componente separado.
+- MateriasManager sigue siendo un componente grande.
+- El perfil es una primera pantalla base.
+- La cartelera todavia no fue conectada a community_posts.
+- La ruta /comunidad se conserva sin cambios.
+
+
+COMPORTAMIENTO ANTERIOR CONSERVADO
+-----------------------------------
+
+Se mantuvieron:
+
+- Supabase Auth.
+- Importacion PDF.
+- Persistencia de materias.
+- Notas.
+- Estados academicos.
+- Correlatividades.
+- Seleccion de planes.
+- Contactos reales de catedras.
+- Fuentes oficiales.
+- API de procesamiento de analiticos.
+- Rutas antiguas mediante redirects.
+
+No se avanzo al Sprint 2.

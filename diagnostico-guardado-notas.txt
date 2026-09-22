@@ -1,0 +1,334 @@
+DIAGNOSTICO DEL GUARDADO DE NOTAS
+=================================
+
+Resumen del funcionamiento actual
+----------------------------------
+
+La aplicación tiene dos flujos:
+
+1. Catalogo del plan:
+   - Se carga desde public.subjects.
+   - Se usa para validar el analitico y para el selector manual.
+   - Archivo principal: components/materias-manager.tsx
+
+2. Historial del estudiante:
+   - Se guarda en public.user_subjects.
+   - Relaciona:
+       user_id -> auth.users.id
+       subject_id -> subjects.id
+       status
+       grade
+       passed_at
+   - El dashboard utiliza este historial para calcular avance y promedio.
+
+Flujo actual:
+
+   Seleccionar archivo
+   -> processFile()
+   -> crear filas locales
+   -> editar estado, nota y fecha
+   -> saveRows()
+   -> upsert() en user_subjects
+   -> dashboard consulta user_subjects
+
+
+Archivos involucrados
+---------------------
+
+components/materias-manager.tsx
+--------------------------------
+
+Responsabilidades:
+
+- Cargar materias desde subjects.
+- Cargar historial previo desde user_subjects.
+- Procesar PDF e imagen como pre-carga.
+- Procesar CSV y TXT intentando detectar nombres y notas.
+- Mantener el estado local rows.
+- Construir el payload de guardado.
+- Ejecutar el upsert en Supabase.
+
+Operacion actual:
+
+supabase
+  .from("user_subjects")
+  .upsert(payload, { onConflict: "user_id,subject_id" })
+  .select("id, subject_id, status, grade, passed_at");
+
+
+app/dashboard/page.tsx
+----------------------
+
+Consulta:
+
+supabase.from("subjects").select("id", { count: "exact", head: true })
+
+y:
+
+supabase
+  .from("user_subjects")
+  .select("id, status, grade, subject:subjects(name)")
+  .eq("user_id", user?.id);
+
+Calcula:
+
+avance = materias aprobadas / total de materias
+promedio = promedio de grade en materias passed
+
+
+lib/supabase/mvp-queries.ts
+---------------------------
+
+Contiene helpers para:
+
+- Obtener materias del usuario.
+- Guardar o actualizar una materia.
+- Obtener publicaciones comunitarias.
+
+La funcion saveUserSubject() existe, pero actualmente
+MateriasManager no la utiliza directamente. Esto duplica la logica
+de persistencia.
+
+
+lib/supabase/browser.ts
+----------------------
+
+Crea el cliente Supabase para componentes cliente mediante
+createBrowserClient().
+
+
+supabase/mvp-schema.sql
+-----------------------
+
+Define o migra:
+
+- profiles
+- subjects
+- correlatives
+- user_subjects
+- community_posts
+
+
+Flujo de ingreso de una nota
+----------------------------
+
+Cuando se escribe una nota:
+
+onChange={event => updateRow(row.id, { nota: event.target.value })}
+
+La nota se almacena en el estado local:
+
+rows[].nota
+
+Cuando se cambia el estado:
+
+pendiente -> pending
+regular -> regular
+aprobada -> passed
+
+Antes de guardar, la nota se transforma:
+
+grade:
+  row.estado === "aprobada" && row.nota
+    ? Number(row.nota)
+    : null
+
+Por lo tanto, la nota sí se conserva en el estado local antes del
+guardado.
+
+
+Problemas encontrados
+---------------------
+
+1. El estado local funciona, pero la base puede tener un esquema
+   parcialmente migrado.
+
+Durante la integracion aparecieron errores relacionados con:
+
+- passed_at inexistente.
+- Restricciones antiguas de status.
+- Tipos incompatibles en correlatives.
+- Columnas heredadas de versiones anteriores.
+
+Esto demuestra que la estructura real de Supabase no coincide
+necesariamente con el esquema MVP actual.
+
+
+2. El upsert depende de una restriccion unica.
+
+El frontend usa:
+
+upsert(payload, { onConflict: "user_id,subject_id" })
+
+La base debe tener:
+
+unique (user_id, subject_id)
+
+Si la tabla existente tiene otra constraint, el upsert puede fallar.
+
+
+3. Los tipos de IDs pueden no coincidir.
+
+El componente acepta:
+
+id: string | number
+
+Esto se agrego porque durante la migracion se detectaron tablas
+existentes con uuid y otras versiones con bigint.
+
+Si subjects.id es uuid, user_subjects.subject_id tambien debe ser uuid.
+
+
+4. Las politicas RLS pueden bloquear el upsert.
+
+La politica esperada es:
+
+create policy "Users manage their subject history"
+on public.user_subjects
+for all
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+El usuario debe estar autenticado y user_id debe coincidir con
+auth.uid().
+
+El codigo verifica si user es null, pero no conserva ni muestra
+un authError separado de getUser().
+
+
+5. La recuperacion del historial necesita verificarse.
+
+Actualmente se consulta:
+
+supabase
+  .from("user_subjects")
+  .select("subject_id, status, grade, passed_at");
+
+La RLS deberia limitar las filas al usuario autenticado, pero seria
+mas claro agregar tambien:
+
+.eq("user_id", user.id)
+
+
+6. Hay dos implementaciones de guardado.
+
+- MateriasManager.saveRows()
+- lib/supabase/mvp-queries.ts -> saveUserSubject()
+
+Esto puede producir diferencias entre payload, tipos y manejo de
+errores. Conviene centralizar el guardado.
+
+
+Lo que esta confirmado
+----------------------
+
+- Las notas se escriben en el estado controlado rows[].nota.
+- El formulario usa value y onChange.
+- El payload intenta enviar la nota en grade.
+- La nota solo se envia si el estado es aprobada.
+- El dashboard consulta actualmente subjects y user_subjects.
+- El catalogo y el historial son conceptos separados.
+
+
+Causa mas probable
+------------------
+
+La causa mas probable es una incompatibilidad entre la definicion real
+de user_subjects en Supabase y el payload actual:
+
+1. Columnas migradas parcialmente.
+2. subject_id con un tipo diferente.
+3. Falta o diferencia en la constraint unica:
+   user_id, subject_id
+4. Restriccion CHECK antigua para status.
+5. Politica RLS no actualizada.
+
+No se puede confirmar cual de estas variantes es la concreta sin
+inspeccionar la definicion real de la tabla y el error exacto del
+upsert.
+
+
+Consultas necesarias para confirmar
+------------------------------------
+
+A. Columnas y tipos:
+
+select
+  table_name,
+  column_name,
+  data_type,
+  udt_name,
+  is_nullable,
+  column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in ('subjects', 'user_subjects')
+order by table_name, ordinal_position;
+
+
+B. Constraints de user_subjects:
+
+select
+  conname,
+  contype,
+  pg_get_constraintdef(oid) as definition
+from pg_constraint
+where conrelid = 'public.user_subjects'::regclass
+order by conname;
+
+
+C. Politicas RLS:
+
+select
+  policyname,
+  permissive,
+  roles,
+  cmd,
+  qual,
+  with_check
+from pg_policies
+where schemaname = 'public'
+  and tablename in ('subjects', 'user_subjects');
+
+
+D. Filas actuales:
+
+select *
+from public.user_subjects
+order by created_at desc
+limit 20;
+
+
+E. Error exacto del navegador:
+
+1. Abrir DevTools con F12.
+2. Ir a Console.
+3. Procesar o cargar una materia.
+4. Presionar Guardar materias.
+5. Copiar el error exacto de Supabase.
+
+
+Propuesta de solucion
+---------------------
+
+1. Confirmar tipos reales de subjects.id y user_subjects.subject_id.
+2. Confirmar la constraint unica (user_id, subject_id).
+3. Confirmar y corregir las politicas RLS.
+4. Centralizar el guardado en saveUserSubject().
+5. Mantener rows como estado temporal de edicion.
+6. Luego del guardado:
+   - Actualizar history con la respuesta de Supabase.
+   - Mostrar confirmacion con registros devueltos.
+   - Refrescar o recalcular el dashboard.
+7. Validar:
+   - Nota entre 1 y 10.
+   - Nota obligatoria si el estado es aprobada.
+   - Fecha obligatoria si corresponde.
+8. Agregar filtros explicitos por user_id.
+9. Mantener separados:
+   - Catalogo de materias.
+   - Materias detectadas.
+   - Historial persistido.
+
+No se modifico ningun archivo de codigo como parte del diagnostico.

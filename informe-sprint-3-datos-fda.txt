@@ -1,0 +1,309 @@
+MESITA VIRTUAL — INFORME SPRINT 3
+Datos académicos oficiales: agenda y horarios de cátedras
+
+1. RESUMEN FUNCIONAL
+
+Se implementó la base server-side para descubrir, importar, normalizar, revisar
+y publicar datos oficiales de la Facultad de Artes UNLP.
+
+El flujo es:
+
+fuente oficial → adapter → parser → normalización → draft en Supabase →
+revisión administrativa → publicación → lectura pública en Mesita.
+
+Se actualizaron:
+
+- /agenda para leer academic_events publicados;
+- AcademicDeadlineCard para mostrar el próximo evento y su fuente;
+- /catedras para mostrar horarios publicados junto a contactos existentes;
+- /dashboard para mostrar el próximo evento publicado;
+- /admin/imports para ejecutar imports y revisar drafts.
+
+No se implementaron Web Push, Service Worker/PWA, emails, OCR, nuevas
+correlatividades ni soporte para carreras fuera de Diseño Multimedial.
+
+2. QA PREVIO DEL SPRINT 2
+
+- user_subjects usa exactamente `passed` para materias aprobadas. No se creó
+  ningún estado equivalente.
+- Los labels públicos siguen siendo Plan 2006 y Plan 2024.
+- `2023` solamente se acepta dentro del mapping del parser como equivalente
+  interno de `new`; no se muestra al usuario.
+- `recordNumber` fue eliminado del tipo ParsedAnalyticSubject y ya no se
+  devuelve al navegador ni se persiste.
+- Se agregó `isAcademicSetupComplete()` en
+  lib/supabase/academic-config.ts para reutilización futura. No obliga a repetir
+  onboarding y no bloquea la reimportación desde Recorrido.
+
+3. MIGRACIÓN SQL
+
+Archivo:
+
+supabase/migrations/20260921110000_sprint3_fda_data.sql
+
+La migración crea:
+
+- data_sources
+- import_runs
+- academic_events
+- course_schedules
+
+También registra las fuentes oficiales actuales, crea índices lógicos mediante
+restricciones UNIQUE por `source_id + external_key`, habilita RLS y permite
+lectura pública únicamente de registros publicados.
+
+La migración debe ejecutarse en el SQL Editor de Supabase antes de usar
+/admin/imports.
+
+4. TABLAS NUEVAS
+
+data_sources conserva:
+
+- clave;
+- nombre;
+- tipo de fuente;
+- índice;
+- recurso actual;
+- parser;
+- checksum;
+- timestamps de chequeo y éxito.
+
+import_runs conserva:
+
+- estado running/success/warning/failed;
+- checksum;
+- cantidad encontrada;
+- cantidad modificada;
+- warnings;
+- resumen de error.
+
+academic_events conserva fechas de agenda, inscripción, año académico, fuente,
+estado y last_seen_at.
+
+course_schedules conserva materia cruda, vínculo opcional con subjects, día,
+hora, comisión, aula, sede, observaciones, fuente, estado y last_seen_at.
+
+Los estados de publicación son draft, verified, published y stale.
+
+5. ADAPTERS Y REGISTRY
+
+Archivos principales:
+
+- lib/fda/types.ts
+- lib/fda/source-registry.ts
+- lib/fda/fetch-source.ts
+- lib/fda/run-source-import.ts
+- lib/fda/parsers/google-sheet-schedule.ts
+- lib/fda/parsers/academic-calendar-pdf.ts
+
+Fuentes registradas:
+
+HORARIOS PRIMARIOS DE MULTIMEDIA
+
+- https://www2.fba.unlp.edu.ar/multimedia/estudiantes/horarios/
+- Plan nuevo, segundo cuatrimestre:
+  https://docs.google.com/spreadsheets/d/1BtPLVDtHHm_l48K5ScrwAGbVCdOlXKUm/export?format=csv
+- Plan nuevo, primer cuatrimestre:
+  https://docs.google.com/spreadsheets/d/e/2PACX-1vSP4x4_y4dhi0yoS4KTEAeze-52o4L7p5tNaaQ9IOSL2KOAL6FiN-Lc4A714nH79A/pub?output=csv
+- Plan viejo:
+  https://docs.google.com/spreadsheets/d/e/2PACX-1vR5cgkziEGhGoaTOr0TPstNPaanxrqwBp1hWPmy2gSaSL9Fhu1H_B5RTwjlkVsahA/pub?output=csv
+
+FUENTE SECUNDARIA / FALLBACK SAE
+
+- https://www2.fba.unlp.edu.ar/sae/horarios-y-aulas/
+
+El adapter SAE descubre desde el HTML de la página una planilla pública
+enlazada y la convierte a CSV cuando el enlace es de Google Sheets. No
+sobrescribe automáticamente datos específicos de Multimedia.
+
+CALENDARIO PRIMARIO
+
+- Índice:
+  https://www2.fba.unlp.edu.ar/academica/calendario-academico-2024-3/
+- PDF segundo cuatrimestre 2026:
+  https://drive.google.com/uc?export=download&id=105utASN95iq9MHRGf7k6rTRt4WppiC5P
+- PDF primer cuatrimestre 2026:
+  https://drive.google.com/uc?export=download&id=19GB-uxVmWScSEpZwvE8cDTWGgyG6wAbG
+
+6. MÉTODO DE LECTURA DE GOOGLE SHEETS
+
+Se usa fetch server-side sobre la exportación CSV pública, no se automatiza la
+interfaz de Google Sheets.
+
+El fetch:
+
+- usa User-Agent identificable;
+- sigue redirects;
+- tiene timeout de 20 segundos;
+- rechaza respuestas mayores a 15 MB;
+- calcula SHA-256.
+
+La página índice oficial de Multimedia se utilizó para descubrir y verificar las
+URLs actuales. Las URLs se registran en data_sources para poder actualizarlas
+sin tocar React.
+
+7. ALGORITMO DE GRILLA HORARIA
+
+El parser detecta la fila de encabezados con los días Lunes a Viernes.
+Luego recorre filas cuyo primer campo es una hora HH:MM.
+
+Para cada celda no vacía:
+
+- el nombre de la materia se toma de la primera línea;
+- las líneas siguientes se analizan como comisión, aula, sede y notas;
+- se genera una fila independiente por día y hora;
+- se genera external_key estable usando SHA-256;
+- si la duración no está expresada de manera confiable, end_time queda NULL.
+
+Esto soporta nombres y detalles multilínea y no asume una tabla tradicional
+materia/día/hora.
+
+8. PARSER DE CALENDARIO
+
+Se reutiliza PDF.js en runtime Node.
+
+El parser:
+
+- detecta el año académico del documento;
+- identifica inscripción, mesa/examen y otros eventos;
+- procesa rangos del mismo mes;
+- procesa rangos entre meses;
+- convierte a ISO;
+- genera warning si no encuentra año o rangos reconocibles.
+
+Ejemplo cubierto por tests:
+
+- 2 al 8 de noviembre de 2026;
+- 30 de noviembre al 5 de diciembre de 2026.
+
+No se hardcodearon las fechas de noviembre o diciembre como lógica del parser.
+
+9. MATCHING CON subjects
+
+Se reutiliza la normalización académica del Sprint 2:
+
+- minúsculas;
+- eliminación de acentos;
+- puntuación irrelevante;
+- espacios normalizados.
+
+La importación intenta igualdad normalizada. Si no coincide, el horario queda
+con raw_subject_name y subject_id NULL. No se guarda un fuzzy match ambiguo.
+
+10. STAGING, PUBLICACIÓN Y FUENTES CAÍDAS
+
+Los imports escriben drafts y nunca publican automáticamente.
+
+La pantalla administrativa permite:
+
+- ejecutar un import;
+- ver cantidad encontrada, cambiada y warnings;
+- publicar un draft;
+- descartar un draft, pasándolo a stale.
+
+Una ejecución con cero registros queda como warning. No se borran horarios ni
+eventos anteriores automáticamente.
+
+Los registros encontrados actualizan last_seen_at.
+
+11. AUTORIZACIÓN ADMINISTRATIVA
+
+La página /admin/imports y los endpoints verifican sesión server-side y
+comparan el email con:
+
+CRONOPIOS_ADMIN_EMAILS
+
+El endpoint no acepta URLs arbitrarias. Solo acepta source keys del registry.
+
+Para escribir datos de importación se usa SUPABASE_SERVICE_ROLE_KEY únicamente
+en servidor. Nunca se envía al navegador. Si no está configurada, el endpoint
+devuelve un error explícito y no ejecuta el import.
+
+12. RESULTADO DE FUENTES REALES
+
+Se verificaron mediante fetch las páginas oficiales actuales y se obtuvieron:
+
+- índice de horarios de Multimedia con enlaces diferenciados para plan nuevo,
+  plan viejo y seminarios;
+- CSV público real del Sheet de materias del plan nuevo, segundo cuatrimestre;
+- CSV público real del Sheet de materias del plan nuevo, primer cuatrimestre;
+- índice oficial SAE;
+- índice oficial del calendario académico;
+- PDF real del calendario académico 2026, segundo cuatrimestre.
+
+No se ejecutó una escritura real contra Supabase durante esta implementación
+porque la migración todavía no fue aplicada al proyecto remoto y no se debe usar
+una clave service role inexistente o expuesta. La ejecución real queda lista en:
+
+POST /api/admin/import/fda
+body: { "sourceKey": "academic-calendar-2026-second" }
+
+También están disponibles las source keys de Multimedia y SAE en
+lib/fda/source-registry.ts.
+
+13. TESTS
+
+Se agregó Vitest 2.1.9 con:
+
+npm.cmd test
+
+Resultado:
+
+- 3 archivos de test;
+- 4 tests;
+- 4 passed.
+
+Se cubren:
+
+- grilla de horarios;
+- nombre multilínea;
+- comisión;
+- aula;
+- sede;
+- hora inicial;
+- endTime ausente;
+- rango de fechas del mismo mes;
+- rango entre meses;
+- detección de año;
+- warning sin año;
+- matching exacto;
+- coincidencia probable sin asignación automática.
+
+14. BUILD
+
+Comando:
+
+npm.cmd run build
+
+Resultado: exitoso.
+
+Se generaron correctamente:
+
+- /agenda
+- /catedras
+- /dashboard
+- /admin/imports
+- /api/admin/import/fda
+- /api/admin/import/fda/review
+
+No se ejecutó ESLint porque el proyecto no tiene configuración y Next.js abre
+un wizard interactivo.
+
+15. DEUDA TÉCNICA
+
+- Aplicar la migración en Supabase remoto.
+- Configurar CRONOPIOS_ADMIN_EMAILS.
+- Configurar SUPABASE_SERVICE_ROLE_KEY solo en el entorno server-side.
+- Ejecutar imports reales desde /admin/imports y revisar drafts.
+- Completar el adapter SAE si la página cambia el formato de sus enlaces.
+- Agregar comparación explícita entre fuentes Multimedia y SAE cuando ambas
+  publiquen la misma materia.
+- Incorporar aliases académicos curados para mejorar subject_id.
+- Marcar como stale los registros no vistos en una ejecución positiva; por ahora
+  nunca se borran y permanecen disponibles para revisión.
+- El parser PDF depende de que el calendario tenga capa de texto; no se agregó
+  OCR.
+- La interfaz pública de Cátedras conserva el catálogo de contactos existente y
+  agrega horarios cuando están publicados y el nombre coincide.
+
+No se implementaron Web Push ni Sprint 4.

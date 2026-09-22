@@ -1,0 +1,50 @@
+[
+  {
+    "table": "academic_events",
+    "previousStatus": [
+      {
+        "id": 6,
+        "status": "published"
+      }
+    ],
+    "after": [
+      {
+        "id": 6,
+        "status": "published"
+      }
+    ],
+    "method": "manual reviewed sample, already published; reaffirmed using server admin client"
+  },
+  {
+    "table": "course_schedules",
+    "previousStatus": [
+      {
+        "id": 14,
+        "status": "published"
+      },
+      {
+        "id": 16,
+        "status": "published"
+      },
+      {
+        "id": 19,
+        "status": "published"
+      }
+    ],
+    "after": [
+      {
+        "id": 14,
+        "status": "published"
+      },
+      {
+        "id": 16,
+        "status": "published"
+      },
+      {
+        "id": 19,
+        "status": "published"
+      }
+    ],
+    "method": "manual reviewed sample, already published; reaffirmed using server admin client"
+  }
+]

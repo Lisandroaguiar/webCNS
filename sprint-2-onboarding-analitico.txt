@@ -1,0 +1,431 @@
+ESPECIFICACION SPRINT 2
+MESITA VIRTUAL - CRONOPIOS
+=========================
+
+Actuar como Product Engineer senior especializado en Next.js 14 App Router,
+React, TypeScript, Supabase, PDF.js y UX mobile-first.
+
+El Sprint 1 de MESITA VIRTUAL - por Cronopios esta terminado y compila.
+Implementar solamente:
+
+ONBOARDING + IMPORTACION SEGURA DE ANALITICO + CARGA MANUAL INICIAL.
+
+No implementar scraping, Web Push ni OCR.
+No modificar correlatividades.
+No hacer un refactor profundo de MateriasManager.
+No reescribir el proyecto.
+
+
+OBJETIVO
+--------
+
+Un estudiante nuevo debe poder crear su recorrido mediante:
+
+A) Subir un certificado analitico PDF generado por SIU Guarani.
+B) Seleccionar carrera/plan y comenzar una carga manual.
+
+El flujo debe persistir los datos y terminar en /dashboard.
+
+La prueba interna esta limitada a Diseno Multimedial, pero la arquitectura
+debe contemplar:
+
+- Licenciatura en Diseno Multimedial.
+- Profesorado en Diseno Multimedial.
+- Distintos planes de estudio.
+
+No asumir que Diseno Multimedial es una unica carrera.
+
+Antes de implementar inspeccionar:
+
+- profiles.degree
+- profiles.curriculum
+- subjects.curriculum
+
+No cambiar el esquema Supabase. Si existen valores legacy como old/new,
+crear mapping TypeScript y separar siempre valor interno de label visible.
+
+
+RUTA Y FLUJO DE ONBOARDING
+--------------------------
+
+Crear /onboarding.
+
+Debe estar disponible solo para usuarios autenticados.
+Si un usuario ya tiene carrera/plan y recorrido cargado, no repetirlo.
+No impedir que luego importe o edite desde /dashboard/recorrido.
+
+Pantalla inicial:
+
+    Armemos tu recorrido
+
+    Podes subir tu analitico o empezar marcando las materias a mano.
+
+Mostrar dos caminos:
+
+1. SUBIR MI ANALITICO
+   Label: Mas rapido
+
+2. CARGAR A MANO
+
+Ninguna opcion debe ser irreversible.
+Mostrar:
+
+    Despues podes modificar todo desde Recorrido.
+
+
+CAMINO A - ANALITICO PDF
+------------------------
+
+El usuario no debe elegir carrera/plan obligatoriamente antes de subir.
+El PDF debe intentar detectar carrera y plan.
+
+Flujo:
+
+Seleccionar PDF -> Procesando -> Resultado -> Confirmacion de carrera/plan
+-> Revision de materias -> Guardar -> Dashboard.
+
+Aceptar inicialmente solamente PDF generado por SIU Guarani.
+No prometer imagenes ni aceptar JPG/PNG como si existiera OCR.
+
+Microcopy:
+
+    Subi el PDF de tu analitico
+    Por ahora funciona con el certificado PDF generado por SIU Guarani.
+
+Reutilizar app/api/parse-analitico/route.ts y PDF.js existente.
+Separar el parsing de la API HTTP cuando sea posible.
+
+Crear preferentemente:
+
+    lib/academic/analytic-parser.ts
+
+Tipos conceptuales:
+
+    type ParsedAnalytic = {
+      detectedDegree: ...
+      detectedCurriculum: ...
+      subjects: ParsedAnalyticSubject[]
+      reportedApprovedCount?: number
+      reportedAverage?: number
+      reportedProgress?: number
+      warnings: string[]
+    }
+
+    type ParsedAnalyticSubject = {
+      rawName: string
+      grade?: number
+      passedAt?: string
+      recordNumber?: string
+    }
+
+No devolver ni persistir:
+
+- DNI.
+- Codigo de validacion.
+- Nombre completo.
+- Otros identificadores personales innecesarios.
+
+No copiar el PDF real usado durante el desarrollo al repositorio.
+No agregarlo a fixtures.
+No incluir datos personales en tests.
+Si se necesitan fixtures, usar datos ficticios y estructura sintetica.
+
+
+PARSER Y FILAS MULTILINEA
+-------------------------
+
+El documento puede contener:
+
+    FACULTAD DE ARTES
+    PROFESORADO EN DISENO MULTIMEDIAL
+    Plan: 2006
+
+Luego:
+
+    Aprobadas
+    Asignatura
+    Nota
+    Fecha
+    Acta/Resolucion
+
+Los nombres pueden estar partidos en varias lineas. No asumir una linea por
+materia.
+
+Ejemplo conceptual:
+
+    Identidad, Estado y Sociedad en Latinoamerica y
+    Argentina 8 (Ocho) 17/12/2022 12345
+
+La nota puede ser 8 (Ocho), la fecha DD/MM/YYYY y el acta puede aparecer al
+final.
+
+Extraer, si existen:
+
+- Promedio academico.
+- Total de asignaturas aprobadas.
+- Porcentaje de avance.
+
+Usarlos solamente para validar la importacion. El progreso oficial debe
+seguir calculandose desde subjects y user_subjects.
+
+
+NORMALIZACION Y MATCHING
+------------------------
+
+Crear normalizeSubjectName(name), normalizando:
+
+- lowercase;
+- trim;
+- espacios multiples;
+- acentos;
+- puntuacion irrelevante.
+
+No modificar el nombre mostrado al usuario.
+
+Comparar materias con subjects del plan detectado y clasificar:
+
+- EXACT
+- PROBABLE
+- UNMATCHED
+
+EXACT puede venir preseleccionado.
+PROBABLE requiere confirmacion.
+UNMATCHED permite elegir materia manualmente o ignorar.
+
+No guardar fuzzy matches dudosos.
+No inventar materias nuevas desde el navegador.
+
+
+PANTALLA DE REVISION
+--------------------
+
+Debe mostrar:
+
+- Carrera detectada.
+- Plan detectado.
+- Cantidad extraida.
+- Cantidad reconocida.
+- Cantidad que necesita revision.
+
+Cada fila muestra:
+
+- Nombre.
+- Estado.
+- Nota.
+- Fecha.
+
+Ejemplo:
+
+    Tecnologia Multimedial I
+    APROBADA - 10
+    20 dic 2021
+
+Para coincidencias dudosas:
+
+    Nombre del analitico
+    Creemos que corresponde a:
+    [selector de materia]
+
+Permitir corregir match, ignorar fila y modificar nota.
+
+
+VALIDACION CRUZADA
+------------------
+
+Si el certificado informa reportedApprovedCount, compararlo con la cantidad
+extraida.
+
+Si coincide:
+
+    El analitico coincide.
+
+Si no coincide, no bloquear:
+
+    El analitico indica X materias aprobadas, pero pudimos reconocer Y.
+    Revisemos las que faltan.
+
+El promedio informado puede compararse con tolerancia de redondeo.
+Las discrepancias son warnings, no errores fatales.
+
+
+GUARDADO
+--------
+
+Guardar solamente luego de confirmar la pantalla de revision.
+
+Persistir:
+
+- profiles.degree
+- profiles.curriculum
+- user_subjects
+
+Usar valores internos compatibles con el esquema actual.
+
+Para materias aprobadas:
+
+    status = approved
+
+Guardar grade y passed_at cuando existan.
+
+Usar upsert o estrategia segura para:
+
+- no crear duplicados;
+- no borrar progreso existente;
+- no empeorar datos corregidos manualmente.
+
+Inspeccionar y reutilizar las convenciones existentes de MateriasManager.
+
+
+CAMINO B - CARGA MANUAL
+-----------------------
+
+Al elegir Cargar a mano:
+
+1. Preguntar carrera.
+2. Preguntar plan.
+3. Guardar la seleccion con mecanismo compatible con profiles.
+4. Mostrar el plan academico.
+5. Permitir marcar materias.
+
+No duplicar toda la logica de MateriasManager.
+Reutilizarlo en modo onboarding si resulta razonable.
+El usuario puede saltar la carga manual y entrar al dashboard sin materias.
+
+
+UX MOBILE Y ESTADOS
+-------------------
+
+Optimizar para 360px, 390px, 430px, 768px, 1024px y 1440px.
+Targets tactiles de al menos 44px.
+La revision debe funcionar con una mano.
+Usar CTA sticky inferior cuando ayude:
+
+    Guardar 22 materias
+
+No ocultar warnings importantes debajo del CTA.
+Usar la identidad creada en Sprint 1 sin convertir la pantalla en un flyer.
+
+Implementar visualmente:
+
+- idle;
+- archivo seleccionado;
+- procesando;
+- exito;
+- warning;
+- error de PDF;
+- carrera no detectada;
+- plan no detectado;
+- ninguna materia encontrada;
+- matching parcial;
+- guardando;
+- guardado exitoso.
+
+Los errores deben explicar el siguiente paso.
+Preferir "No pudimos leer este analitico." sobre mensajes tecnicos.
+Ofrecer "Intentar de nuevo" o "Cargar materias a mano".
+
+
+PRIVACIDAD
+----------
+
+Agregar cerca del uploader:
+
+    Usamos el archivo para detectar tus materias.
+
+Agregar "No guardamos el PDF" solamente si el backend garantiza que no se
+almacena. No hacer afirmaciones de privacidad no verificadas.
+
+
+COMPONENTIZACION
+----------------
+
+Evitar implementar todo en app/onboarding/page.tsx.
+
+Arquitectura orientativa:
+
+components/onboarding/
+  onboarding-shell.tsx
+  import-method-selector.tsx
+  analytic-uploader.tsx
+  analytic-review.tsx
+  analytic-subject-row.tsx
+  degree-selector.tsx
+  curriculum-selector.tsx
+
+lib/academic/
+  analytic-parser.ts
+  normalize-subject-name.ts
+  match-analytic-subjects.ts
+
+No crear abstracciones innecesarias.
+
+
+TESTS
+-----
+
+Agregar tests del parser si la infraestructura actual lo permite, sin
+introducir complejidad desproporcionada.
+
+Como minimo probar:
+
+1. Materia de una linea.
+2. Materia de varias lineas.
+3. Nota numerica.
+4. Fecha.
+5. Carrera.
+6. Plan.
+7. Total de aprobadas.
+8. Promedio.
+9. Porcentaje.
+10. Documento sin datos esperados.
+
+No usar PII real en tests.
+
+
+COMPATIBILIDAD
+--------------
+
+No romper:
+
+- /dashboard/recorrido;
+- MateriasManager;
+- login;
+- registro;
+- Supabase Auth;
+- rutas publicas;
+- importador actual hasta completar migracion.
+
+Si se reemplaza el importador actual, mantener un parser compartido y evitar
+dos implementaciones independientes.
+
+
+VALIDACION FINAL
+----------------
+
+Ejecutar:
+
+    npm.cmd run build
+
+Ejecutar la infraestructura de tests si existe.
+No configurar ESLint automaticamente en este sprint.
+
+
+ENTREGA ESPERADA
+----------------
+
+Al finalizar entregar:
+
+1. Resumen funcional.
+2. Flujo exacto de onboarding.
+3. Archivos creados y modificados.
+4. Forma de detectar carrera.
+5. Forma de detectar plan.
+6. Algoritmo de filas multilinea.
+7. Estrategia de matching.
+8. Estrategia de merge con user_subjects.
+9. Datos descartados por privacidad.
+10. Casos de error cubiertos.
+11. Resultado del build.
+12. Deuda tecnica restante.
+
+No avanzar al Sprint 3.

@@ -1,0 +1,191 @@
+PLAN DE CONTINUACION VISUAL - CRONOPIOS
+=======================================
+
+Revision realizada
+-------------------
+
+La aplicacion ya cuenta con:
+
+- Fondo de papel texturado.
+- Colores lima, coral, lila y sage.
+- Bordes negros y sombras tipo brutal.
+- Tarjetas con recursos de scrapbook.
+- Animacion de resaltador fluorescente.
+- Navegacion desktop y mobile.
+- Supabase y logica academica funcionando.
+
+Componentes visuales existentes:
+
+- components/ScrapbookCard.tsx
+  Resuelve tarjetas tipo recorte, cinta y animaciones.
+
+- components/SubjectItem.tsx
+  Contiene el patron de resaltador fluorescente para materias.
+
+- app/globals.css
+  Concentra los estilos reutilizables y la textura general.
+
+- app/dashboard/layout.tsx
+  Contiene la navegacion principal del dashboard.
+
+Archivos que modificaria
+------------------------
+
+- app/globals.css
+- app/layout.tsx, solo si hace falta ajustar metadata o clases globales.
+- app/page.tsx
+- app/dashboard/layout.tsx
+- app/dashboard/page.tsx
+- app/dashboard/materias/page.tsx, si necesita mejorar su introduccion visual.
+- app/dashboard/calendario/page.tsx
+- app/dashboard/catedras/page.tsx
+- components/ScrapbookCard.tsx, solo para hacerlo mas flexible.
+
+Posibles componentes nuevos:
+
+- components/scrapbook/tape.tsx
+- components/scrapbook/paper-label.tsx
+- components/scrapbook/section-heading.tsx
+- components/mobile-nav.tsx
+
+No modificaria el esquema de Supabase ni las consultas academicas existentes.
+
+Componentes a reutilizar
+------------------------
+
+- ScrapbookCard para agenda, avisos y bloques editoriales.
+- SubjectItem como referencia del resaltador fluorescente.
+- Las clases .card, .input, .button-primary y .eyebrow.
+- Los iconos existentes de lucide-react.
+- La logica actual de materias-manager.tsx:
+  - Supabase.
+  - Importacion de analiticos.
+  - Plan viejo y plan nuevo.
+  - Correlatividades.
+  - Estados bloqueado, pendiente, regular y aprobado.
+  - Notas.
+  - Persistencia.
+
+Cambios visuales por pantalla
+-----------------------------
+
+1. Inicio
+
+Archivo:
+app/page.tsx
+
+- Mantener el fondo oscuro como contraste principal.
+- Reemplazar las tarjetas grandes genericas por composiciones tipo carpeta.
+- Incorporar papel superpuesto, cinta adhesiva y etiquetas pequenas.
+- Mejorar la jerarquia del llamado a registrarse.
+- Conservar los textos y el nombre actuales.
+- Mejorar especialmente la lectura en mobile.
+- Mantener Ingresar y Crear mi cuenta como acciones principales.
+
+2. Dashboard / Inicio academico
+
+Archivo:
+app/dashboard/page.tsx
+
+- Convertir el bloque de avance en una ficha de seguimiento.
+- Destacar el porcentaje, las materias aprobadas y el plan seleccionado.
+- Darle una metafora distinta al promedio, como una anotacion o sello.
+- Mantener el calculo real filtrado por plan.
+- Mejorar los estados vacios y los mensajes.
+- Mantener las ultimas aprobadas y el acceso al calendario.
+
+3. Navegacion del dashboard
+
+Archivo:
+app/dashboard/layout.tsx
+
+- Aplicar apariencia de carpeta lateral en desktop.
+- Convertir cada enlace en una etiqueta o ficha de navegacion.
+- Mejorar el estado activo y el foco accesible.
+- Mantener una barra inferior comoda para mobile.
+- No reducir las areas tactiles.
+- Conservar las mismas rutas y la autenticacion.
+
+4. Mi carrera / materias
+
+Archivos:
+app/dashboard/materias/page.tsx
+components/materias-manager.tsx
+
+- Mantener intacta la logica actual.
+- Mejorar el encabezado, selector de plan y bloques por ano.
+- Mejorar estados vacios e importacion del analitico.
+- Usar pequenas etiquetas de ano y separadores editoriales.
+- Preservar el resaltador fluorescente.
+- Mantener visibles los candados y las leyendas de correlativas.
+- Evitar solapamientos en celular.
+
+5. Calendario
+
+Archivo:
+app/dashboard/calendario/page.tsx
+
+- Usar una composicion tipo agenda o cuaderno.
+- Diferenciar fechas, tipos de evento y periodos de inscripcion.
+- Reservar ScrapbookCard para avisos destacados.
+- Mantener datos actuales y estados vacios.
+
+6. Guia de catedras
+
+Archivo:
+app/dashboard/catedras/page.tsx
+
+- Usar una composicion tipo indice o fichas de archivo.
+- Mejorar el buscador y la jerarquia de resultados.
+- Separar visualmente materia, area, contacto y enlaces oficiales.
+- Mantener los contactos reales y sus fuentes.
+
+Riesgos y precauciones
+----------------------
+
+1. Responsive
+
+Las filas de materias tienen controles y leyendas largas. Se probaran
+especialmente anchos moviles para evitar solapamientos.
+
+2. Accesibilidad
+
+- Mantener contraste suficiente.
+- No depender unicamente del color para indicar estados.
+- Conservar foco visible y areas tactiles adecuadas.
+
+3. Funcionalidad academica
+
+- No cambiar consultas, tablas, RLS ni reglas de correlatividad.
+- No reemplazar datos reales por placeholders.
+- Los cambios en materias-manager.tsx seran visuales salvo que aparezca
+  un bug directamente relacionado.
+
+4. Rendimiento
+
+- Evitar animaciones pesadas o imagenes externas.
+- Reutilizar CSS y componentes existentes.
+
+5. Identidad visual
+
+No se atribuiran a Cronopios colores, simbolos o recursos que no esten
+presentes en el proyecto. Se trabajara sobre el sistema visual actual:
+papel, negro, coral, lima, lila, sage, cinta y marcador.
+
+Etapas de implementacion
+------------------------
+
+1. Ajustar el sistema visual global y las primitivas scrapbook.
+2. Mejorar la navegacion y el layout responsive.
+3. Redisenar el Inicio publico.
+4. Redisenar el Dashboard.
+5. Mejorar Mi carrera sin tocar su logica.
+6. Ajustar Calendario y Guia de catedras.
+7. Ejecutar TypeScript, build y revisar errores.
+8. Verificar responsive y estados principales.
+
+Estado
+------
+
+Esta propuesta fue generada sin modificar el codigo de la aplicacion.
+La implementacion queda pendiente de aprobacion.

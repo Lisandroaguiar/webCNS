@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="64" viewBox="0 0 220 64">
+  <filter id="noise"><feTurbulence baseFrequency=".5" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .2 0 0 0 0 .15 0 0 0 0 .05 0 0 0 .12 0"/></filter>
+  <path fill="#d9ff43" fill-opacity=".82" d="m4 7 22 3 24-5 27 4 26-5 28 5 25-4 27 5 31-4 22 5-4 18 5 18-24-2-25 5-27-4-28 5-26-4-29 4-25-5-25 3-19-5 4-17z"/>
+  <rect width="220" height="64" filter="url(#noise)" opacity=".55"/>
+</svg>

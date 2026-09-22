@@ -1,0 +1,18 @@
+{
+  "academic_events": {
+    "firstCount": 8,
+    "secondCount": 8,
+    "sameIds": true,
+    "duplicateKeys": 0,
+    "lastSeenAdvanced": 8,
+    "businessChanges": []
+  },
+  "course_schedules": {
+    "firstCount": 28,
+    "secondCount": 28,
+    "sameIds": true,
+    "duplicateKeys": 0,
+    "lastSeenAdvanced": 28,
+    "businessChanges": []
+  }
+}

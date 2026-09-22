@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="420" viewBox="0 0 700 420">
+  <defs><pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0v24" fill="none" stroke="#6c76a8" stroke-opacity=".24" stroke-width="1"/></pattern><filter id="grain"><feTurbulence baseFrequency=".7" numOctaves="2" seed="9"/><feColorMatrix values="0 0 0 0 .4 0 0 0 0 .45 0 0 0 0 .6 0 0 0 .08 0"/></filter></defs>
+  <path fill="#faf9f3" d="M5 12 44 6l42 7 47-8 40 9 45-7 44 7 47-9 44 8 43-6 45 8 45-9 44 8 48-7 42 9 45-7 46 8 33-7 11 31-7 42 8 39-7 42 8 39-7 43 8 39-9 42 8 40-10 38-41-7-43 8-45-7-44 8-45-9-43 8-46-7-43 8-45-8-43 8-46-9-43 8-45-7-45 8-43-9-41 8-43-7-39 7-13-34 7-40-8-42 7-40-8-43 8-39-7-43 8-40-8-42 7-38-7-42 8-38-7-38 7z"/>
+  <rect width="700" height="420" fill="url(#grid)"/><rect width="700" height="420" filter="url(#grain)" opacity=".35"/>
+</svg>

@@ -1,0 +1,219 @@
+{
+  "academic-calendar-2026-second": {
+    "sourceId": 4,
+    "rows": 8,
+    "statuses": {
+      "published": 6,
+      "draft": 2
+    },
+    "drafts": 2,
+    "mismatches": null,
+    "recentRuns": [
+      {
+        "id": 30,
+        "found": 8,
+        "changed": 0,
+        "warnings": 0,
+        "error": null,
+        "checksum": "d8d6bdba937f0759790151c2406503f82ca1c0516e00575e8ecbd5453b8f7199"
+      },
+      {
+        "id": 27,
+        "found": 8,
+        "changed": 0,
+        "warnings": 0,
+        "error": null,
+        "checksum": "d8d6bdba937f0759790151c2406503f82ca1c0516e00575e8ecbd5453b8f7199"
+      }
+    ]
+  },
+  "multimedia-schedules-new-second": {
+    "sourceId": 1,
+    "rows": 12,
+    "statuses": {
+      "published": 12
+    },
+    "drafts": 0,
+    "mismatches": [
+      {
+        "id": 5,
+        "name": "Int. a los medios digitales",
+        "commission": null,
+        "weekday": "Jueves",
+        "time": "14:00:00"
+      },
+      {
+        "id": 8,
+        "name": "Taller de diseño de experiencias",
+        "commission": null,
+        "weekday": "Miércoles",
+        "time": "18:00:00"
+      },
+      {
+        "id": 7,
+        "name": "Programación para medios interactivos",
+        "commission": "Comisión 4",
+        "weekday": "Martes",
+        "time": "18:00:00"
+      },
+      {
+        "id": 6,
+        "name": "Taller de diseño de experiencias",
+        "commission": null,
+        "weekday": "Lunes",
+        "time": "18:00:00"
+      },
+      {
+        "id": 12,
+        "name": "Programación para medios interactivos",
+        "commission": null,
+        "weekday": "Jueves",
+        "time": "20:00:00"
+      },
+      {
+        "id": 9,
+        "name": "Programación para medios interactivos",
+        "commission": "Comisión 5",
+        "weekday": "Jueves",
+        "time": "18:00:00"
+      },
+      {
+        "id": 11,
+        "name": "Taller de diseño de experiencias",
+        "commission": null,
+        "weekday": "Miércoles",
+        "time": "20:00:00"
+      },
+      {
+        "id": 10,
+        "name": "Taller de diseño de experiencias",
+        "commission": null,
+        "weekday": "Lunes",
+        "time": "20:00:00"
+      },
+      {
+        "id": 3,
+        "name": "Programación para medios interactivos",
+        "commission": "Comisión 2",
+        "weekday": "Martes",
+        "time": "10:00:00"
+      },
+      {
+        "id": 1,
+        "name": "Programación para medios interactivos",
+        "commission": "Comisión 1",
+        "weekday": "Martes",
+        "time": "08:00:00"
+      },
+      {
+        "id": 4,
+        "name": "Programación para medios interactivos",
+        "commission": "Comisión 3",
+        "weekday": "Martes",
+        "time": "14:00:00"
+      }
+    ],
+    "recentRuns": [
+      {
+        "id": 31,
+        "found": 12,
+        "changed": 12,
+        "warnings": 0,
+        "error": null,
+        "checksum": "96211f93e9b21f060c3c94d397281dd31d2783a2f0d55b1e700db8536565fa6d"
+      },
+      {
+        "id": 28,
+        "found": 12,
+        "changed": 12,
+        "warnings": 0,
+        "error": null,
+        "checksum": "96211f93e9b21f060c3c94d397281dd31d2783a2f0d55b1e700db8536565fa6d"
+      }
+    ]
+  },
+  "multimedia-schedules-old": {
+    "sourceId": 3,
+    "rows": 16,
+    "statuses": {
+      "published": 16
+    },
+    "drafts": 0,
+    "mismatches": [
+      {
+        "id": 14,
+        "name": "Lenguaje multimedial 1",
+        "commission": null,
+        "weekday": "Jueves",
+        "time": "08:00:00"
+      },
+      {
+        "id": 21,
+        "name": "Taller de diseño multimedial 1",
+        "commission": null,
+        "weekday": "Lunes",
+        "time": "18:00:00"
+      },
+      {
+        "id": 26,
+        "name": "Taller de diseño multimedial 1",
+        "commission": null,
+        "weekday": "Lunes",
+        "time": "20:00:00"
+      },
+      {
+        "id": 22,
+        "name": "Tecnología multimedial 1",
+        "commission": "Comisión 4",
+        "weekday": "Martes",
+        "time": "18:00:00"
+      },
+      {
+        "id": 27,
+        "name": "Taller de diseño multimedial 1",
+        "commission": null,
+        "weekday": "Miércoles",
+        "time": "20:00:00"
+      },
+      {
+        "id": 23,
+        "name": "Taller de diseño multimedial 1",
+        "commission": null,
+        "weekday": "Miércoles",
+        "time": "18:00:00"
+      },
+      {
+        "id": 28,
+        "name": "Tecnología multimedial 1",
+        "commission": null,
+        "weekday": "Jueves",
+        "time": "20:00:00"
+      },
+      {
+        "id": 24,
+        "name": "Tecnología multimedial 1",
+        "commission": "Comisión 5",
+        "weekday": "Jueves",
+        "time": "18:00:00"
+      }
+    ],
+    "recentRuns": [
+      {
+        "id": 32,
+        "found": 16,
+        "changed": 16,
+        "warnings": 0,
+        "error": null,
+        "checksum": "32a444a5beab0244691c8589b20eaf2fede722d3a7df4a8509d102f43cb5b032"
+      },
+      {
+        "id": 29,
+        "found": 16,
+        "changed": 16,
+        "warnings": 0,
+        "error": null,
+        "checksum": "32a444a5beab0244691c8589b20eaf2fede722d3a7df4a8509d102f43cb5b032"
+      }
+    ]
+  }
+}

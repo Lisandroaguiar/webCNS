@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --cronopios-pink: #FE26A7;
+  --cronopios-magenta: #F608B8;
+  --cronopios-green: #19F094;
+  --cronopios-ink: #221E21;
+  --cronopios-paper: #F3EDEE;
+  --white: #FFFFFF;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--cronopios-paper);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.09) 0.65px, transparent 0.65px);
+  background-size: 7px 7px;
+  color: var(--cronopios-ink);
+}
+button, a, input, select { @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cronopios-magenta; }
+::selection { background: var(--cronopios-pink); color: var(--cronopios-ink); }
+@layer components {
+  .card { @apply rounded-none border-2 border-black bg-white p-5 shadow-[4px_4px_0_0_#221E21]; }
+  .input { @apply w-full rounded-xl border border-ink/15 bg-white/80 px-4 py-3 outline-none transition placeholder:text-ink/35 focus:border-coral focus:ring-2 focus:ring-coral/20; }
+  .button-primary { @apply min-h-11 rounded-none border-2 border-ink bg-cronopios-magenta px-5 py-3 font-bold text-ink shadow-[4px_4px_0_0_#221E21] transition hover:-translate-y-0.5 hover:bg-cronopios-pink; }
+  .eyebrow { @apply inline-block bg-cronopios-magenta px-2 py-1 text-xs font-bold uppercase tracking-[0.22em] text-ink; }
+}
+
+.paper-scrap {
+  position: relative;
+  background: #fff url('/textures/paper-white.svg') center / 100% 100% no-repeat;
+  filter: drop-shadow(5px 6px 0 rgba(34,30,33,.95));
+}
+.grid-paper {
+  position: relative;
+  background: #faf9f3 url('/textures/paper-grid.svg') center / 100% 100% no-repeat;
+  filter: drop-shadow(4px 5px 0 rgba(34,30,33,.9));
+}
+.tape-detail {
+  position: absolute;
+  z-index: 2;
+  width: 7rem;
+  height: 2.2rem;
+  background: url('/textures/tape.svg') center / 100% 100% no-repeat;
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+.editorial-title { @apply font-display font-black uppercase leading-[0.9] tracking-[-0.055em]; }
+.active-nav-cutout { @apply bg-cronopios-magenta text-ink shadow-[2px_2px_0_0_#221E21]; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.marker-fluo {
+  position: absolute;
+  inset: 18% 5% 18% 3%;
+  z-index: 0;
+  border-radius: 0.35rem;
+  background: #d8ff00;
+  opacity: 0.72;
+  transform: rotate(-1deg) scaleX(0);
+  transform-origin: left center;
+  animation: marker-fluo-in 420ms cubic-bezier(.22, 1, .36, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes marker-fluo-in {
+  to { transform: rotate(-1deg) scaleX(1); }
+}
