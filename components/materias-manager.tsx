@@ -7,6 +7,7 @@ import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
 import { saveUserSubjects, type SubjectStatus } from "@/lib/supabase/mvp-queries";
 import { subjectsForDegree, requirements2006, plan2006Source } from "@/lib/academic/degree-catalog";
 import { detectDegree, degreeOptions, type DegreeValue } from "@/lib/academic/curriculum";
+import { getCourseEligibility } from "@/lib/academic/course-eligibility";
 import { parseAnalitico } from "@/lib/analitico";
 import { normalizeSubjectName, type ParsedAnalyticSubject } from "@/lib/academic/analytic-parser";
 
@@ -60,6 +61,9 @@ export function MateriasManager() {
   const [changingDegree, setChangingDegree] = useState(false);
   const [degree, setDegree] = useState<DegreeValue>("licenciatura");
   const [curriculum, setCurriculum] = useState<"old" | "new">("old");
+  const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "available" | "in_progress" | "completed" | "blocked">("all");
+  const eligibility = useMemo(() => getCourseEligibility({ subjects: catalog.map(item => ({ id: item.id, name: item.nombre, code: item.code, year: item.anio, curriculum: item.curriculum })), userSubjects: history, curriculum, degree }), [catalog, history, curriculum, degree]);
+  const eligibilityById = useMemo(() => new Map(eligibility.map(item => [String(item.subject.id), item])), [eligibility]);
 
   useEffect(() => {
     async function loadCatalogAndHistory() {
@@ -421,14 +425,19 @@ export function MateriasManager() {
         </div>
         {hasImport && rows.length > 0 && <button disabled={saving} onClick={() => void saveRows()} className="rounded-xl border-2 border-ink bg-lime px-5 py-3 font-semibold shadow-[3px_3px_0_0_#000] disabled:opacity-50">{saving ? "Guardando..." : "Guardar materias"}</button>}
       </div>
+      <div className="mt-5 flex flex-wrap gap-2" aria-label="Filtrar materias por disponibilidad">
+        {([ ["all", "Todas"], ["available", "Disponibles"], ["in_progress", "Regularizadas"], ["completed", "Aprobadas"], ["blocked", "Bloqueadas"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={eligibilityFilter === value} onClick={() => setEligibilityFilter(value)} className={`min-h-11 border-2 border-ink px-3 text-sm font-bold ${eligibilityFilter === value ? "bg-cronopios-magenta text-white" : "bg-white"}`}>{label}</button>)}
+      </div>
+      <p className="mt-2 text-xs text-ink/60">Los indicadores usan las materias guardadas. <a href="/dashboard/disponibles" className="font-bold underline">Ver requisitos en detalle</a>.</p>
       <div className="mt-6 space-y-7">
         {[1, 2, 3, 4, 5].map(year => {
-          const yearSubjects = catalog.filter(subject => subject.anio === year);
+          const yearSubjects = catalog.filter(subject => subject.anio === year && (eligibilityFilter === "all" || eligibilityById.get(String(subject.id))?.status === eligibilityFilter));
           if (!yearSubjects.length) return null;
           return <section key={year}>
             <h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3>
             <div className="space-y-2">
               {yearSubjects.map(subject => {
+                const courseStatus = eligibilityById.get(String(subject.id));
                 const row = rowFor(subject);
                 const saved = savedFor(subject);
                 const unlocked = isSubjectUnlocked(subject);
@@ -452,7 +461,7 @@ export function MateriasManager() {
                       <input className="mt-0.5 h-5 w-5 shrink-0 accent-ink disabled:cursor-not-allowed md:mt-0" type="checkbox" checked={checked} disabled={!unlocked && !checked} onChange={event => toggleSubject(subject, event.target.checked)} />
                       <div className="flex min-w-0 items-start gap-2">
                         {!unlocked && <Lock aria-label="Materia bloqueada por correlativas" size={16} className="mt-0.5 shrink-0 text-ink/45" />}
-                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}<span className="ml-2 inline-block text-[10px] font-black uppercase tracking-wider text-cronopios-magenta">{courseStatus?.status === "available" ? "Disponible" : courseStatus?.status === "completed" ? "Aprobada" : courseStatus?.status === "in_progress" ? "Regularizada" : courseStatus?.status === "blocked" && courseStatus.missingRequirements.length === 1 ? "Te falta 1" : courseStatus?.status === "unknown" ? "Revisar regla" : ""}</span></span>
                       </div>
                     </div>
                     {unlocked && activeRow && <div className="grid min-w-0 w-full gap-3 sm:grid-cols-2 md:max-w-md md:grid-cols-[120px_100px] md:gap-2">

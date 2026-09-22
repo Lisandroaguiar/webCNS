@@ -6,8 +6,8 @@ import { catedras, CATEDRAS_SOURCE_URL, ESTUDIOS_HYS_SOURCE_URL, type CatedraCon
 
 type Schedule = { raw_subject_name: string; weekday: string; start_time: string; end_time: string | null; commission: string | null; classroom: string | null; campus: string | null; notes: string | null; source_label: string; source_url: string };
 
-export function CatedrasDirectory({ schedules = [] }: { schedules?: Schedule[] }) {
-  const [query, setQuery] = useState("");
+export function CatedrasDirectory({ schedules = [], initialQuery = "" }: { schedules?: Schedule[]; initialQuery?: string }) {
+  const [query, setQuery] = useState(initialQuery);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/\b(i{1,3}|iv|v)\b/g, value => ({ i: "1", ii: "2", iii: "3", iv: "4", v: "5" }[value] ?? value)).replace(/[^a-z0-9]+/g, " ").trim();
   const meaningfulTokens = (value: string) => new Set(normalize(value).split(" ").filter(token => token.length > 2 && !["taller", "lenguaje", "tecnologia", "multimedial", "materia", "plan", "nuevo", "viejo", "comision"].includes(token)));
   const matchScore = (schedule: Schedule, materia: string) => {

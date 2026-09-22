@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 import { getPublishedAcademicEvents } from "@/lib/supabase/public-data";
 import { subjectsForDegree } from "@/lib/academic/degree-catalog";
 import { detectDegree } from "@/lib/academic/curriculum";
+import { getCourseEligibility, type EligibilitySubject } from "@/lib/academic/course-eligibility";
 import { AcademicDeadlineCard } from "@/components/dashboard/academic-deadline-card";
 import { measureServerStep } from "@/lib/observability/performance";
 
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
   const renderStartedAt = performance.now();
   const supabase = await createClient();
   const userPromise = getCurrentUser();
-  const subjectsPromise = measureServerStep("subjects", () => supabase.from("subjects").select("id, code, curriculum"));
+  const subjectsPromise = measureServerStep("subjects", () => supabase.from("subjects").select("id, name, code, year, curriculum"));
   const eventsPromise = measureServerStep("academic_events", getPublishedAcademicEvents);
   const user = await userPromise;
   const [{ data: profile }, { data: allSubjects }, { data: savedSubjects }, publicEvents] = await Promise.all([
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
   const totalSubjects = curriculumSubjects.length;
   const curriculumIds = curriculumSubjects.map(subject => subject.id);
   const rows = (savedSubjects ?? []).filter(subject => curriculumIds.includes(subject.subject_id)) as SavedSubject[];
+  const available = getCourseEligibility({ subjects: (allSubjects ?? []) as EligibilitySubject[], userSubjects: (savedSubjects ?? []).map(item => ({ subject_id: item.subject_id, status: item.status })), curriculum: selectedCurriculum, degree: detectDegree(user?.user_metadata?.degree ?? "") ?? "licenciatura" }).filter(item => item.status === "available");
   const today = new Date().toISOString().slice(0, 10);
   const nextEvent = publicEvents.find(event => (event.ends_at ?? event.starts_at ?? "2999-12-31") >= today);
   const approved = rows.filter(subject => subject.status === "passed");
@@ -77,6 +79,12 @@ export default async function DashboardPage() {
         {!approved.length && <p className="mt-6 text-sm text-ink/50">Todavía no cargaste materias aprobadas.</p>}
       </div>
       <AcademicDeadlineCard title={nextEvent?.title} detail={nextEvent ? `${nextEvent.starts_at ?? "Fecha a confirmar"}${nextEvent.ends_at ? ` — ${nextEvent.ends_at}` : ""}` : undefined} sourceLabel={nextEvent?.source_label} sourceUpdatedAt={nextEvent?.updated_at} />
+    </section>
+    <section className="card mt-8 border-2 border-ink bg-white">
+      <p className="eyebrow">Ya podés cursar</p>
+      {available.slice(0, 3).map(item => <p key={item.subject.id} className="mt-3 font-bold">✦ {item.subject.name}</p>)}
+      <p className="mt-4 text-sm text-ink/60">{selectedCurriculum === "new" ? "Las reglas alternativas del Plan 2024 todavía requieren revisión manual." : !rows.length ? "Primero carguemos tu recorrido para calcular resultados útiles." : !available.length ? "Por ahora no encontramos nuevas materias habilitadas." : `${available.length} materias habilitadas según tu recorrido.`}</p>
+      <Link href="/dashboard/disponibles" className="mt-4 inline-flex min-h-11 items-center font-bold text-cronopios-magenta underline">Ver todas <ArrowRight className="ml-1" size={16} /></Link>
     </section>
     {!rows.length && <div className="mt-5 flex items-center gap-3 rounded-2xl border border-coral/30 bg-coral/10 p-4 text-sm"><CircleAlert className="text-coral" size={20} /> Cargá tus materias desde <Link className="font-bold underline" href="/dashboard/recorrido">Mi recorrido</Link>.</div>}
   </>;
