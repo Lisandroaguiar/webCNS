@@ -4,6 +4,7 @@ import { ExternalLink, Mail, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { catedras, CATEDRAS_SOURCE_URL, ESTUDIOS_HYS_SOURCE_URL, type CatedraContact } from "@/data/catedras";
 import { detectScheduleConflicts, isCurrentSchedule, sameSubject, type WeekSchedule } from "@/lib/academic/weekly-schedule";
+import { formatScheduleTime, scheduleSubjectLabel } from "@/lib/academic/schedule-display";
 
 type Schedule = WeekSchedule & { notes: string | null; source_label: string; source_url: string };
 
@@ -46,19 +47,20 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
     const numberMatch = subjectName.match(/\b[1-5]\b/)?.[0] === scheduleName.match(/\b[1-5]\b/)?.[0];
     return overlap * 10 + (numberMatch ? 8 : 0);
   };
-  const matches = (schedule: Schedule, materia: string) => matchScore(schedule, materia) >= 18;
-  const schedulesFor = (materia: string) => schedules.filter(schedule => matches(schedule, materia)).sort((a, b) => matchScore(b, materia) - matchScore(a, materia));
+  const cardNames = (item: CatedraContact) => [item.materia, ...(item.nombresAlternativos?.split(" · ") ?? [])];
+  const cardMatchScore = (schedule: Schedule, item: CatedraContact) => Math.max(...cardNames(item).map(name => matchScore(schedule, name)));
+  const schedulesFor = (item: CatedraContact) => schedules.filter(schedule => cardMatchScore(schedule, item) >= 18).sort((a, b) => cardMatchScore(b, item) - cardMatchScore(a, item));
   const bestCardFor = (schedule: Schedule) => catedras
-    .map(item => ({ item, score: matchScore(schedule, item.materia) }))
+    .map(item => ({ item, score: cardMatchScore(schedule, item) }))
     .sort((a, b) => b.score - a.score)[0];
-  const cardSchedules = (item: CatedraContact) => schedulesFor(item.materia).filter(schedule => {
+  const cardSchedules = (item: CatedraContact) => schedulesFor(item).filter(schedule => {
     const best = bestCardFor(schedule);
     return best?.item === item;
   });
   const filtered = useMemo(() => {
-    const normalized = query.toLocaleLowerCase().trim();
+    const normalized = normalize(query);
     if (!normalized) return catedras;
-    return catedras.filter(item => [item.area, item.materia, item.nombresAlternativos, item.contacto, item.docentes].filter(Boolean).join(" ").toLocaleLowerCase().includes(normalized));
+    return catedras.filter(item => normalize([item.area, item.materia, item.nombresAlternativos, item.contacto, item.docentes].filter(Boolean).join(" ")).includes(normalized));
   }, [query]);
   const visibleSchedules = useMemo(() => {
     const normalized = normalize(query);
@@ -66,6 +68,27 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
   }, [query, schedules]);
   const visibleCardScheduleIds = new Set(filtered.flatMap(item => cardSchedules(item).map(schedule => schedule.id)));
   const unmatchedSchedules = visibleSchedules.filter(schedule => !visibleCardScheduleIds.has(schedule.id));
+  function groupedSchedules(rows: Schedule[]) {
+    const groups = new Map<string, Schedule[]>();
+    for (const row of rows) {
+      const name = scheduleSubjectLabel(row, row.semester ?? period.semester).primary;
+      const key = normalize(name);
+      groups.set(key, [...(groups.get(key) ?? []), row]);
+    }
+    return Array.from(groups.values());
+  }
+  function headingName(name: string, item?: CatedraContact) {
+    const sourceName = item && cardNames(item).find(candidate => normalize(candidate) === normalize(name));
+    if (sourceName) return sourceName;
+    return name === name.toLocaleUpperCase("es") ? name.charAt(0) + name.slice(1).toLocaleLowerCase("es") : name;
+  }
+  function meetingRows(rows: Schedule[]) {
+    return rows.map(schedule => <div key={schedule.id} className="mt-3 border-t border-ink/15 pt-2 text-sm">
+      <p className="font-bold">{schedule.weekday} · {formatScheduleTime(schedule.start_time)}{schedule.end_time ? `–${formatScheduleTime(schedule.end_time)}` : ""}</p>
+      <p className="text-ink/70">{schedule.classroom || "Aula a confirmar"}</p>
+      {selectionAction(schedule)}
+    </div>);
+  }
 
   return <div>
     {weekMessage && <p role="status" className="mb-4 border-l-4 border-cronopios-magenta bg-white p-3 text-sm font-bold">{weekMessage}</p>}
@@ -79,10 +102,14 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
     <div className="mt-3 grid gap-4 md:grid-cols-2">
       {filtered.map(item => <article key={`${item.area}-${item.materia}`} className="card min-w-0 transition hover:-translate-y-1 hover:border-coral/30">
         <p className="text-xs font-semibold uppercase tracking-widest text-coral">{item.area}</p>
-        <h2 className="mt-2 font-display text-xl font-bold">{item.materia}</h2>
-        {item.nombresAlternativos && <p className="mt-2 text-sm text-ink/55">{item.nombresAlternativos}</p>}
+        <h2 className="mt-2 font-display text-xl font-bold">{scheduleSubjectLabel({ raw_subject_name: item.materia, curriculum: "old" }, period.semester).primary}</h2>
+        {scheduleSubjectLabel({ raw_subject_name: item.materia, curriculum: "old" }, period.semester).oldName ? <p className="mt-1 text-xs text-ink/55">(antes: {item.materia}, plan viejo)</p> : item.nombresAlternativos && <p className="mt-2 text-sm text-ink/55">{item.nombresAlternativos}</p>}
         {item.docentes && <p className="mt-4 text-sm font-medium text-ink/75">{item.docentes}</p>}
-        {cardSchedules(item).map(schedule => <div key={schedule.id} className="mt-4 border-l-4 border-cronopios-magenta pl-3 text-sm"><p className="font-bold">{schedule.weekday} · {schedule.start_time}{schedule.end_time ? `–${schedule.end_time}` : ""}</p><p className="text-ink/70">{schedule.commission || "Comisión a confirmar"} · {schedule.classroom || "Aula a confirmar"}{schedule.campus ? ` · ${schedule.campus}` : ""}</p><p className="mt-1 text-xs text-ink/50">Plan {schedule.curriculum === "new" ? "nuevo" : schedule.curriculum === "old" ? "viejo" : "sin especificar"} · {schedule.semester ? `${schedule.semester}º cuatrimestre` : "cuatrimestre no informado"} · Fuente: {schedule.source_label}</p>{selectionAction(schedule)}</div>)}
+        {groupedSchedules(cardSchedules(item)).map(group => {
+          const label = scheduleSubjectLabel(group[0], group[0].semester ?? period.semester);
+          const sameHeading = normalize(headingName(label.primary, item)) === normalize(scheduleSubjectLabel({ raw_subject_name: item.materia, curriculum: "old" }, period.semester).primary);
+          return <div key={normalize(label.primary)} className="mt-4 border-l-4 border-cronopios-magenta pl-3">{!sameHeading && <p className="font-bold">{headingName(label.primary, item)}</p>}{!sameHeading && label.oldName && <p className="text-xs text-ink/55">(antes: {label.oldName}, plan viejo)</p>}{meetingRows(group)}</div>;
+        })}
         {item.contacto ? <p className="mt-4 flex min-w-0 items-start gap-2 whitespace-pre-line text-sm text-ink/70 [overflow-wrap:anywhere]"><Mail className="mt-0.5 shrink-0 text-coral" size={16} />{item.contacto}</p> : <p className="mt-4 text-sm italic text-ink/45">No se publicó un contacto específico.</p>}
         {item.redes && <div className="mt-4 flex flex-wrap gap-3">{item.redes.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="min-h-11 py-2 text-sm font-semibold text-coral hover:underline">{link.label} ↗</a>)}</div>}
       </article>)}
@@ -92,13 +119,10 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
       <h2 className="font-display text-2xl font-black">Otros horarios publicados</h2>
       <p className="mt-2 text-sm text-ink/60">Estos horarios fueron publicados oficialmente, pero todavía no tienen una cátedra vinculada en la guía.</p>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {unmatchedSchedules.map(schedule => <article key={schedule.id} className="card">
-          <p className="font-display text-xl font-bold">{schedule.raw_subject_name}</p>
-          <p className="mt-3 text-sm font-bold">{schedule.weekday} · {schedule.start_time}{schedule.end_time ? `–${schedule.end_time}` : ""}</p>
-          <p className="mt-1 text-sm text-ink/70">{schedule.commission || "Comisión a confirmar"} · {schedule.classroom || "Aula a confirmar"}{schedule.campus ? ` · ${schedule.campus}` : ""}</p>
-          <p className="mt-2 text-xs text-ink/50">Plan {schedule.curriculum === "new" ? "nuevo" : schedule.curriculum === "old" ? "viejo" : "sin especificar"} · {schedule.semester ? `${schedule.semester}º cuatrimestre` : "cuatrimestre no informado"} · Fuente: {schedule.source_label}</p>
-          {selectionAction(schedule)}
-        </article>)}
+        {groupedSchedules(unmatchedSchedules).map(group => {
+          const label = scheduleSubjectLabel(group[0], group[0].semester ?? period.semester);
+          return <article key={normalize(label.primary)} className="card"><h3 className="font-display text-xl font-bold">{headingName(label.primary)}</h3>{label.oldName && <p className="mt-1 text-xs text-ink/55">(antes: {label.oldName}, plan viejo)</p>}{meetingRows(group)}</article>;
+        })}
       </div>
     </section>}
     <div className="mt-8 flex flex-wrap gap-4 text-sm font-semibold">

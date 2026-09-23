@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sourceRegistry } from "@/lib/fda/source-registry";
 import { AdminImportsPanel } from "@/components/admin/admin-imports-panel";
+import { formatScheduleTime } from "@/lib/academic/schedule-display";
 
 function isAdmin(email?: string | null) {
   const allowed = (process.env.CRONOPIOS_ADMIN_EMAILS ?? "").split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
@@ -21,5 +22,5 @@ export default async function AdminImportsPage() {
     admin.from("academic_events").select("id,title,source_label,status").eq("status", "draft").order("starts_at"),
     admin.from("course_schedules").select("id,raw_subject_name,weekday,start_time,source_label,status").eq("status", "draft").order("weekday").order("start_time")
   ]);
-  return <main className="min-h-screen bg-cronopios-paper px-5 py-8 md:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Administración</p><h1 className="mt-2 font-display text-4xl font-black">Imports FDA</h1></div><Link href="/admin/cartelera" className="font-bold underline">Administrar cartelera</Link></div><p className="mt-3 max-w-2xl text-ink/65">Las importaciones se guardan como draft hasta una revisión humana.</p><AdminImportsPanel sources={sources ?? Object.values(sourceRegistry).map(source => ({ id: source.key, key: source.key, name: source.name, last_checked_at: null, last_success_at: null }))} runs={runs ?? []} drafts={[...(eventDrafts ?? []).map(item => ({ ...item, table: "academic_events" as const, label: item.title })), ...(scheduleDrafts ?? []).map(item => ({ ...item, table: "course_schedules" as const, label: `${item.raw_subject_name} · ${item.weekday} ${item.start_time}` }))]} /></div></main>;
+  return <main className="min-h-screen bg-cronopios-paper px-5 py-8 md:px-8"><div className="mx-auto max-w-6xl"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Administración</p><h1 className="mt-2 font-display text-4xl font-black">Imports FDA</h1></div><Link href="/admin/cartelera" className="font-bold underline">Administrar cartelera</Link></div><p className="mt-3 max-w-2xl text-ink/65">Las importaciones se guardan como draft hasta una revisión humana.</p><AdminImportsPanel sources={sources ?? Object.values(sourceRegistry).map(source => ({ id: source.key, key: source.key, name: source.name, last_checked_at: null, last_success_at: null }))} runs={runs ?? []} drafts={[...(eventDrafts ?? []).map(item => ({ ...item, table: "academic_events" as const, label: item.title })), ...(scheduleDrafts ?? []).map(item => ({ ...item, table: "course_schedules" as const, label: `${item.raw_subject_name} · ${item.weekday} ${formatScheduleTime(item.start_time)}` }))]} /></div></main>;
 }
