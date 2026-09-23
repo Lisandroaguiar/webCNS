@@ -117,7 +117,7 @@ img, svg, video, canvas { max-width: 100%; }
 .fda-plate--photo .fda-plate__figure { right: -22%; bottom: -29%; width: 138%; height: 138%; max-width: none; object-fit: cover; object-position: 55% 28%; filter: grayscale(1) contrast(2.1); mix-blend-mode: multiply; }
 .fda-plate--photo::before { z-index: 2; background: radial-gradient(#221e21 0.7px, transparent 0.9px) 0 0/4px 4px; opacity: .26; }
 .fda-plate--photo .fda-plate__overlay { right: 0; top: 21%; width: 23%; height: 28%; background: repeating-linear-gradient(0deg, var(--cronopios-green) 0 3px, transparent 3px 6px); opacity: .9; }
-.fda-editorial-sticker { display: inline-block; padding: 5px 8px; border: 1px solid var(--cronopios-ink); background: var(--cronopios-green); color: var(--cronopios-ink); font: 800 9px/1.1 ui-monospace, monospace; letter-spacing: .02em; transform: rotate(-3deg); box-shadow: 2px 2px 0 var(--cronopios-ink); }
+.fda-editorial-sticker { display: inline-block; padding: 5px 8px; border: 1px solid var(--cronopios-ink); background: var(--cronopios-green); color: var(--cronopios-ink); font: 800 9px/1.1 ui-monospace, monospace; letter-spacing: .02em; transform: rotate(-3deg); }
 .fda-home-hero { grid-template-columns: minmax(0, 1fr) minmax(170px, 39%); min-height: 244px; background: #fffdf9; }
 .fda-home-hero__copy { padding: 18px 8px 43px 22px; }
 .fda-home-hero__copy::before { position: absolute; z-index: -1; right: 1%; bottom: 25px; width: 44%; height: 25px; background: repeating-linear-gradient(90deg, transparent 0 6px, rgba(34,30,33,.18) 6px 8px); content: ""; }
