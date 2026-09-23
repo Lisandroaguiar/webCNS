@@ -75,7 +75,7 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
       <label className="sr-only" htmlFor="catedras-search">Buscar cátedra</label>
       <input id="catedras-search" className="input pl-12" placeholder="Buscar materia, área, cátedra o contacto..." value={query} onChange={event => setQuery(event.target.value)} />
     </div>
-    <p className="mt-4 text-sm text-ink/50">{filtered.length} resultado(s)</p>
+    <p className="mt-4 text-sm text-ink/50">{filtered.length + new Set(unmatchedSchedules.map(schedule => schedule.raw_subject_name)).size} resultado(s)</p>
     <div className="mt-3 grid gap-4 md:grid-cols-2">
       {filtered.map(item => <article key={`${item.area}-${item.materia}`} className="card min-w-0 transition hover:-translate-y-1 hover:border-coral/30">
         <p className="text-xs font-semibold uppercase tracking-widest text-coral">{item.area}</p>
@@ -86,7 +86,7 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
         {item.contacto ? <p className="mt-4 flex min-w-0 items-start gap-2 whitespace-pre-line text-sm text-ink/70 [overflow-wrap:anywhere]"><Mail className="mt-0.5 shrink-0 text-coral" size={16} />{item.contacto}</p> : <p className="mt-4 text-sm italic text-ink/45">No se publicó un contacto específico.</p>}
         {item.redes && <div className="mt-4 flex flex-wrap gap-3">{item.redes.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="min-h-11 py-2 text-sm font-semibold text-coral hover:underline">{link.label} ↗</a>)}</div>}
       </article>)}
-      {!filtered.length && <p className="text-sm text-ink/60">No encontramos cátedras con esa búsqueda.</p>}
+      {!filtered.length && !unmatchedSchedules.length && <p className="text-sm text-ink/60">No encontramos cátedras con esa búsqueda.</p>}
     </div>
     {unmatchedSchedules.length > 0 && <section className="mt-10">
       <h2 className="font-display text-2xl font-black">Otros horarios publicados</h2>
