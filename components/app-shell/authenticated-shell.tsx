@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import type { User } from "@supabase/supabase-js";
-import { CalendarDays, GraduationCap, Home, Megaphone, Search, Settings, Upload } from "lucide-react";
+import { CalendarDays, GraduationCap, Home, Megaphone, Search, Settings, Upload, CalendarRange } from "lucide-react";
 import { BrandMark } from "@/components/brand/brand-mark";
 import { DashboardHeader } from "@/components/app-shell/dashboard-header";
 import { MobileBottomNav } from "@/components/app-shell/mobile-bottom-nav";
@@ -20,6 +20,7 @@ export function AuthenticatedShell({ user, children }: { user: User | null; chil
         <NavItem href="/dashboard/recorrido" icon={<GraduationCap size={18} />} label="Recorrido" />
         <NavItem href="/agenda" icon={<CalendarDays size={18} />} label="Agenda" />
         <NavItem href="/catedras" icon={<Search size={18} />} label="Cátedras" />
+        <NavItem href="/dashboard/mi-semana" icon={<CalendarRange size={18} />} label="Mi semana" />
         <NavItem href="/cartelera" icon={<Megaphone size={18} />} label="Cartelera" />
         {isAdmin && <NavItem href="/admin/cartelera" icon={<Upload size={18} />} label="Subir contenido" />}
       </nav>

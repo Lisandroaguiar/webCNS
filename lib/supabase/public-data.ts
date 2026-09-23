@@ -18,7 +18,7 @@ export const getPublishedAcademicEvents = unstable_cache(async () => {
 
 export const getPublishedCourseSchedules = unstable_cache(async () => {
   const { data, error } = await publicClient().from("course_schedules")
-    .select("raw_subject_name,weekday,start_time,end_time,commission,classroom,campus,notes,source_label,source_url")
+    .select("id,subject_id,raw_subject_name,weekday,start_time,end_time,commission,classroom,campus,notes,source_label,source_url,curriculum,academic_year,semester,status")
     .eq("status", "published").order("weekday").order("start_time");
   if (error) throw error;
   return data ?? [];

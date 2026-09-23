@@ -8,6 +8,7 @@ import { detectDegree } from "@/lib/academic/curriculum";
 import { getCourseEligibility, type EligibilitySubject } from "@/lib/academic/course-eligibility";
 import { AcademicDeadlineCard } from "@/components/dashboard/academic-deadline-card";
 import { measureServerStep } from "@/lib/observability/performance";
+import { currentAcademicPeriod } from "@/lib/academic/weekly-schedule";
 
 type SavedSubject = {
   id: string | number;
@@ -28,11 +29,12 @@ export default async function DashboardPage() {
   const subjectsPromise = measureServerStep("subjects", () => supabase.from("subjects").select("id, name, code, year, curriculum"));
   const eventsPromise = measureServerStep("academic_events", getPublishedAcademicEvents);
   const user = await userPromise;
-  const [{ data: profile }, { data: allSubjects }, { data: savedSubjects }, publicEvents] = await Promise.all([
+  const [{ data: profile }, { data: allSubjects }, { data: savedSubjects }, publicEvents, { data: weekSelections }] = await Promise.all([
     measureServerStep("profile", () => supabase.from("profiles").select("full_name, curriculum").eq("id", user?.id).maybeSingle()),
     subjectsPromise,
     measureServerStep("user_subjects", () => supabase.from("user_subjects").select("id, status, grade, subject_id, subject:subjects(name)").eq("user_id", user?.id)),
-    eventsPromise
+    eventsPromise,
+    supabase.from("user_schedule_selections").select("course_schedule:course_schedules(weekday,academic_year,semester,curriculum,status)").eq("user_id", user?.id)
   ]);
   if (process.env.PERF_LOG === "1") console.info(JSON.stringify({ event: "server_timing", name: "dashboard-data", duration_ms: Math.round((performance.now() - renderStartedAt) * 10) / 10 }));
   const selectedCurriculum = profile?.curriculum === "new" ? "new" : "old";
@@ -41,6 +43,9 @@ export default async function DashboardPage() {
   const curriculumIds = curriculumSubjects.map(subject => subject.id);
   const rows = (savedSubjects ?? []).filter(subject => curriculumIds.includes(subject.subject_id)) as SavedSubject[];
   const available = getCourseEligibility({ subjects: (allSubjects ?? []) as EligibilitySubject[], userSubjects: (savedSubjects ?? []).map(item => ({ subject_id: item.subject_id, status: item.status })), curriculum: selectedCurriculum, degree: detectDegree(user?.user_metadata?.degree ?? "") ?? "licenciatura" }).filter(item => item.status === "available");
+  const period = currentAcademicPeriod();
+  const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+  const weekDays = (weekSelections ?? []).flatMap(item => { const raw = item.course_schedule; const schedule = Array.isArray(raw) ? raw[0] : raw; return schedule && schedule.academic_year === period.academicYear && schedule.curriculum === selectedCurriculum && (schedule.semester === period.semester || schedule.semester == null) && schedule.status === "published" ? [schedule.weekday] : []; });
   const today = new Date().toISOString().slice(0, 10);
   const nextEvent = publicEvents.find(event => (event.ends_at ?? event.starts_at ?? "2999-12-31") >= today);
   const approved = rows.filter(subject => subject.status === "passed");
@@ -85,6 +90,11 @@ export default async function DashboardPage() {
       {available.slice(0, 3).map(item => <p key={item.subject.id} className="mt-3 font-bold">✦ {item.subject.name}</p>)}
       <p className="mt-4 text-sm text-ink/60">{selectedCurriculum === "new" ? "Las reglas alternativas del Plan 2024 todavía requieren revisión manual." : !rows.length ? "Primero carguemos tu recorrido para calcular resultados útiles." : !available.length ? "Por ahora no encontramos nuevas materias habilitadas." : `${available.length} ${available.length === 1 ? "materia habilitada" : "materias habilitadas"} según tu recorrido.`}</p>
       <Link href="/dashboard/disponibles" className="mt-4 inline-flex min-h-11 items-center font-bold text-cronopios-magenta underline">Ver todas <ArrowRight className="ml-1" size={16} /></Link>
+    </section>
+    <section className="card mt-5 border-2 border-ink bg-cronopios-paper">
+      <p className="eyebrow">Mi semana</p>
+      {weekDays.length ? <div className="mt-3 flex flex-wrap gap-2">{days.filter(day => weekDays.includes(day)).map(day => <span key={day} className="border-2 border-ink bg-white px-3 py-2 text-sm font-bold">{day.slice(0, 3).toUpperCase()} · {weekDays.filter(value => value === day).length} {weekDays.filter(value => value === day).length === 1 ? "cursada" : "cursadas"}</span>)}</div> : <p className="mt-3 text-sm text-ink/60">Armá tu semana eligiendo comisiones desde Cátedras.</p>}
+      <Link href="/dashboard/mi-semana" className="mt-4 inline-flex min-h-11 items-center font-bold text-cronopios-magenta underline">Ver mi semana <ArrowRight className="ml-1" size={16} /></Link>
     </section>
     {!rows.length && <div className="mt-5 flex items-center gap-3 rounded-2xl border border-coral/30 bg-coral/10 p-4 text-sm"><CircleAlert className="text-coral" size={20} /> Cargá tus materias desde <Link className="font-bold underline" href="/dashboard/recorrido">Mi recorrido</Link>.</div>}
   </>;

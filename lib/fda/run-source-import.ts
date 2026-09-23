@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { sourceRegistry } from "@/lib/fda/source-registry";
 import { fetchSource } from "@/lib/fda/fetch-source";
 import { parseGoogleSheetGrid } from "@/lib/fda/parsers/google-sheet-schedule";
+import { parseSaeMultimedia } from "@/lib/fda/parsers/sae-multimedia";
 import { parseAcademicCalendarText } from "@/lib/fda/parsers/academic-calendar-pdf";
 import type { ImportResult } from "@/lib/fda/types";
 
@@ -24,6 +25,14 @@ export async function runSourceImport(sourceKey: string): Promise<ImportResult> 
   const source = sourceRegistry[sourceKey];
   if (!source) throw new Error("Fuente no permitida.");
   const fetched = await fetchSource(source.resourceUrl);
+  if (source.parserKey === "sae-multimedia-annual-first" || source.parserKey === "sae-multimedia-second") {
+    const parsed = parseSaeMultimedia(fetched.buffer.toString("utf8"), source.parserKey === "sae-multimedia-second" ? "second" : "annual-first", {
+      sourceUrl: source.indexUrl,
+      sourceLabel: source.sourceLabel,
+      academicYear: 2026
+    });
+    return { schedules: parsed.schedules, events: [], warnings: parsed.warnings, checksum: fetched.checksum };
+  }
   if (source.parserKey === "sae-schedules") {
     const html = fetched.buffer.toString("utf8");
     const links = Array.from(html.matchAll(/href=["']([^"']+)["']/gi)).map(match => match[1]).filter(link => /docs\.google\.com|\.csv|\.xlsx/i.test(link));

@@ -36,13 +36,13 @@ export async function POST(request: Request) {
     if (runError || !run) throw new Error(runError?.message ?? "No se pudo crear la ejecución.");
     runId = run.id;
     const result = await runSourceImport(sourceKey);
-    const { data: subjects } = await admin.from("subjects").select("id, name");
+    const { data: subjects } = await admin.from("subjects").select("id, name, curriculum");
     const normalized = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const now = new Date().toISOString();
     const errors: string[] = [];
     let recordsChanged = 0;
     for (const item of result.schedules) {
-      const subject = subjects?.find(candidate => normalized(candidate.name) === normalized(item.rawSubjectName));
+      const subject = subjects?.find(candidate => normalized(candidate.name) === normalized(item.rawSubjectName) && (!item.curriculum || candidate.curriculum === item.curriculum));
       const scheduleRow = {
         source_id: source.id,
         external_key: item.externalKey,

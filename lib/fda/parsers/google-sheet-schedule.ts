@@ -3,7 +3,7 @@ import type { NormalizedSchedule } from "@/lib/fda/types";
 
 const weekdays = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 
-function csvRows(csv: string) {
+export function csvRows(csv: string) {
   const rows: string[][] = [];
   let row: string[] = [], cell = "", quoted = false;
   for (let index = 0; index < csv.length; index += 1) {
