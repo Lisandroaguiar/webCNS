@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 300" role="img" aria-labelledby="title">
+  <title id="title">Interpretación gráfica de la Cabeza de David del Museo de Calcos FDA</title>
+  <defs>
+    <pattern id="grain" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="#221e21" opacity=".28"/><circle cx="5" cy="4" r=".5" fill="#221e21" opacity=".22"/></pattern>
+    <clipPath id="cut"><path d="M41 300c-2-35 17-63 57-72l10-24c-21-16-31-35-33-69-13-5-22-18-17-31-6-37 9-67 41-82 22-28 62-30 91-9 34-5 59 26 52 55 12 28 8 56-9 79-4 36-19 60-46 72l6 21c34 4 61 27 67 60Z"/></clipPath>
+  </defs>
+  <path d="M41 300c-2-35 17-63 57-72l10-24c-21-16-31-35-33-69-13-5-22-18-17-31-6-37 9-67 41-82 22-28 62-30 91-9 34-5 59 26 52 55 12 28 8 56-9 79-4 36-19 60-46 72l6 21c34 4 61 27 67 60Z" fill="#dedbd5" stroke="#221e21" stroke-width="6"/>
+  <g fill="#221e21">
+    <circle cx="82" cy="65" r="23"/><circle cx="102" cy="35" r="22"/><circle cx="127" cy="25" r="23"/><circle cx="157" cy="23" r="23"/><circle cx="187" cy="36" r="23"/><circle cx="210" cy="57" r="23"/><circle cx="226" cy="88" r="16"/><circle cx="66" cy="96" r="17"/>
+  </g>
+  <path d="M88 68c15-13 36-20 57-20 34 0 64 18 73 52-8-14-17-21-30-23-25-4-38 7-58 2-13-4-28-5-42 5Z" fill="#8d8b88" stroke="#221e21" stroke-width="4"/>
+  <path d="M80 112c-6 22 1 50 16 69 13 18 31 32 52 35 27-2 52-18 65-41 11-20 17-48 12-67" fill="none" stroke="#221e21" stroke-width="5"/>
+  <path d="M93 116c9-8 24-10 38-5m32-1c13-6 29-3 40 5" fill="none" stroke="#221e21" stroke-width="6" stroke-linecap="round"/>
+  <path d="M99 125c11 6 21 6 32 0m36-1c12 5 22 4 32-2" fill="none" stroke="#221e21" stroke-width="3"/>
+  <path d="M150 113c-2 16-9 29-12 38 6 7 15 10 25 6" fill="none" stroke="#221e21" stroke-width="4" stroke-linecap="round"/>
+  <path d="M122 177c17 7 32 7 49-1m-30 20c9 2 17 1 25-2" fill="none" stroke="#221e21" stroke-width="3" stroke-linecap="round"/>
+  <path d="M111 209c16 18 42 27 77 6m-77 3-9 22m89-19 5 21" fill="none" stroke="#221e21" stroke-width="4"/>
+  <path d="M77 260c47 20 100 20 151-5" fill="none" stroke="#221e21" stroke-width="5"/>
+  <path clip-path="url(#cut)" d="M0 0h260v300H0z" fill="url(#grain)" opacity=".7"/>
+  <path d="M37 295h220" stroke="#221e21" stroke-width="8"/>
+</svg>

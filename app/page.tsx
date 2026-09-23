@@ -3,6 +3,7 @@ import { CalendarDays, Search } from "lucide-react";
 import { PublicHeader } from "@/components/app-shell/public-header";
 import { GridPaper, PaperScrap, Tape } from "@/components/visual/paper";
 import { getPublishedCommunityPosts } from "@/lib/supabase/public-data";
+import { FdaPlate, FdaDisciplineStrip } from "@/components/identity/fda-identity";
 
 export default async function Home() {
   const communityPosts = (await getPublishedCommunityPosts()).filter(post => !post.event_date || post.event_date.slice(0, 10) >= new Date().toISOString().slice(0, 10)).slice(0, 2);
@@ -27,13 +28,10 @@ export default async function Home() {
         </div>
         <div className="relative min-w-0 max-w-full border-2 border-cronopios-ink bg-cronopios-ink p-4 text-white shadow-[5px_5px_0_0_#19F094] sm:p-5 md:rotate-2 md:shadow-[8px_8px_0_0_#19F094]">
           <Tape className="-top-5 left-1/2 -translate-x-1/2" />
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-cronopios-green">ficha de uso</p>
-          <PaperScrap className="mt-8 max-w-full p-5 text-cronopios-ink sm:p-7">
-            <p className="font-mono text-xs font-bold uppercase tracking-widest text-cronopios-magenta">Mesita Virtual</p>
-            <p className="mt-6 font-display text-3xl font-black leading-none">Tu recorrido,<br />en un vistazo.</p>
-            <div className="mt-8 h-3 border-2 border-cronopios-ink"><div className="h-full w-2/5 bg-cronopios-green" /></div>
-            <p className="mt-2 font-mono text-xs font-bold uppercase">organizar · consultar · avanzar</p>
-          </PaperScrap>
+          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-cronopios-green">archivo vivo · artes</p>
+          <FdaPlate variant="moises-wave" className="mt-5 h-[260px] border-white" />
+          <p className="mt-4 font-display text-xl font-black leading-tight">Una mesita para moverse<br />por la facu.</p>
+          <FdaDisciplineStrip className="mt-4 border border-white/40" />
         </div>
       </div></section>
       <section className="mx-auto grid w-full max-w-6xl gap-5 overflow-clip px-4 py-10 sm:px-5 md:grid-cols-2 md:px-8"><GridPaper className="max-w-full p-5 sm:p-7"><p className="eyebrow">Fechas FDA</p><h2 className="mt-4 font-display text-3xl font-black">Fechas oficiales, sin vueltas.</h2><p className="mt-3 max-w-md text-ink/65">Consultá inscripciones, llamados y próximos eventos desde una cartelera clara.</p></GridPaper><PaperScrap className="max-w-full p-5 sm:p-7"><p className="eyebrow">Tu recorrido</p><h2 className="mt-4 font-display text-3xl font-black">El plan completo, a mano.</h2><p className="mt-3 max-w-md text-ink/65">Marcá materias, mirá el avance y encontrá la información que necesitás.</p></PaperScrap></section>

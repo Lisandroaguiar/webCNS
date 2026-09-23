@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 300" role="img" aria-labelledby="title">
+  <title id="title">Interpretación gráfica del Moisés del Museo de Calcos FDA</title>
+  <defs><pattern id="tone" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="#221e21" opacity=".35"/></pattern></defs>
+  <path d="M26 300c9-32 30-48 61-54l-8-30c-24-21-33-52-31-88-9-21-5-42 7-60l-3-37 25 22c18-31 51-45 84-40l30-25-1 35c36 20 55 55 47 95 3 43-12 78-39 98l-6 26c34 5 55 24 66 58Z" fill="#d7d5cf" stroke="#221e21" stroke-width="6"/>
+  <path d="m60 20 17 42m113-40-9 42" stroke="#221e21" stroke-width="9" stroke-linecap="round"/>
+  <path d="M63 87c-4 29 1 57 11 75m131-75c8 25 7 52-4 74" fill="none" stroke="#221e21" stroke-width="14" stroke-linecap="round"/>
+  <path d="M87 110c11-8 27-9 40-3m34-2c15-7 29-5 42 3" fill="none" stroke="#221e21" stroke-width="7" stroke-linecap="round"/>
+  <path d="M90 121c10 6 22 7 34 1m40-1c11 6 23 4 33-2" fill="none" stroke="#221e21" stroke-width="3"/>
+  <path d="M145 104c-2 24-8 35-11 44 9 7 18 8 28 3" fill="none" stroke="#221e21" stroke-width="4" stroke-linecap="round"/>
+  <path d="M111 166c14-10 29-8 37-2 10-8 25-9 40-2-4 13-14 22-26 23h-37c-13-1-20-7-14-19Z" fill="#221e21"/>
+  <path d="M100 181c-11 21-8 47 4 65 8 24 21 42 38 54m44-119c13 19 13 44 3 65-10 25-24 42-45 54" fill="#aaa8a3" stroke="#221e21" stroke-width="5"/>
+  <path d="M118 185c-6 32-1 67 22 97m31-97c6 28 2 63-29 97m-40-84c5 23 16 47 30 62m55-63c-4 23-16 48-32 62" fill="none" stroke="#221e21" stroke-width="4"/>
+  <path d="M21 300h235" stroke="#221e21" stroke-width="8"/><path d="M54 54h153v245H54z" fill="url(#tone)" opacity=".8"/>
+</svg>
