@@ -13,13 +13,13 @@ const plates: Record<FdaVariant, { figure: "david" | "moises"; inventory: string
 
 export const fdaVariants = Object.keys(plates) as FdaVariant[];
 
-export function FdaPlate({ variant, className = "" }: { variant: FdaVariant; className?: string }) {
+export function FdaPlate({ variant, className = "", priority = false, photo = false }: { variant: FdaVariant; className?: string; priority?: boolean; photo?: boolean }) {
   const plate = plates[variant];
-  return <div aria-hidden="true" className={`fda-plate fda-plate--${variant} ${className}`}>
+  return <div aria-hidden="true" className={`fda-plate fda-plate--${variant} ${photo ? "fda-plate--photo" : ""} ${className}`}>
     <span className="fda-plate__registration fda-plate__registration--tl">+</span>
     <span className="fda-plate__registration fda-plate__registration--br">+</span>
     <span className="fda-plate__top">FDA / UNLP <span>ARCHIVO VIVO</span></span>
-    <Image className="fda-plate__figure" src={`/identity/${plate.figure}-calco.svg`} alt="" width={260} height={300} priority />
+    <Image className="fda-plate__figure" src={photo ? `/identity/fda/${plate.figure}-source.jpg` : `/identity/${plate.figure}-calco.svg`} alt="" width={260} height={300} priority={priority} />
     <span className="fda-plate__figure-label">{plate.figure === "david" ? "CABEZA DE DAVID" : "MOISÉS"} / CALCO</span>
     <span className="fda-plate__overlay" />
     <span className="fda-plate__signal">{plate.signal}</span>
@@ -33,15 +33,20 @@ export function FdaDisciplineStrip({ className = "" }: { className?: string }) {
   </p>;
 }
 
-export function FdaHomeHero({ name, variant }: { name: string; variant: FdaVariant }) {
+export function EditorialSticker({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <span className={`fda-editorial-sticker ${className}`}>{children}</span>;
+}
+
+export function FdaHomeHero({ name }: { name: string }) {
   return <header className="fda-home-hero">
     <div className="fda-home-hero__copy">
       <p className="fda-home-hero__brand">MESITA VIRTUAL <span>por Cronopios</span></p>
-      <p className="fda-home-hero__hello">HOLA, <strong>{name}</strong> ✦</p>
+      <p className="fda-home-hero__hello">BUEN DÍA <span aria-hidden>✳</span> <strong>{name}</strong></p>
       <h1>HOY ANDAMOS<br /><em>POR ARTES.</em></h1>
-      <p className="fda-home-hero__index">FDA · UNLP <span>DIAG. 78 / LA PLATA</span></p>
+      <p className="fda-home-hero__index">FDA / UNLP <span>DIAG. 78 · LA PLATA</span></p>
+      <EditorialSticker className="fda-home-hero__sticker">la facu también pasa acá</EditorialSticker>
     </div>
-    <FdaPlate variant={variant} className="fda-home-hero__plate" />
+    <FdaPlate variant="david-pixel" className="fda-home-hero__plate" priority photo />
     <FdaDisciplineStrip className="fda-home-hero__strip" />
   </header>;
 }
