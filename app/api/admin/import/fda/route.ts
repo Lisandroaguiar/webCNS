@@ -64,10 +64,11 @@ export async function POST(request: Request) {
         last_seen_at: now,
         updated_at: now
       };
-      const { data: existing } = await admin.from("course_schedules").select("id,status,raw_subject_name,weekday,start_time,end_time,commission,classroom,campus,notes,subject_id").eq("source_id", source.id).eq("external_key", item.externalKey).maybeSingle();
+      const { data: existing } = await admin.from("course_schedules").select("id,status,raw_subject_name,curriculum,semester,weekday,start_time,end_time,commission,classroom,campus,notes,subject_id").eq("source_id", source.id).eq("external_key", item.externalKey).maybeSingle();
       const status = existing?.status === "published" || existing?.status === "verified" ? existing.status : "draft";
-      const next = { ...scheduleRow, status };
-      const changed = importFieldsChanged(existing, next, ["raw_subject_name", "weekday", "start_time", "end_time", "commission", "classroom", "campus", "notes", "subject_id", "status"]);
+      const { data: override } = existing ? await admin.from("admin_schedule_overrides").select("changes").eq("course_schedule_id", existing.id).maybeSingle() : { data: null };
+      const next = { ...scheduleRow, ...(override?.changes ?? {}), status };
+      const changed = importFieldsChanged(existing, next, ["raw_subject_name", "curriculum", "semester", "weekday", "start_time", "end_time", "commission", "classroom", "campus", "notes", "subject_id", "status"]);
       const { error } = await admin.from("course_schedules").upsert(next, { onConflict: "source_id,external_key" });
       if (error) errors.push(`Horario ${item.rawSubjectName}: ${error.message}`);
       else if (changed) recordsChanged += 1;

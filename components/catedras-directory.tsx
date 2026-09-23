@@ -8,12 +8,23 @@ import { formatScheduleTime, scheduleSubjectLabel } from "@/lib/academic/schedul
 
 type Schedule = WeekSchedule & { notes: string | null; source_label: string; source_url: string };
 
-export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedSchedules = [], activeCurriculum = null, period, authenticated = false }: { schedules?: Schedule[]; initialQuery?: string; selectedSchedules?: WeekSchedule[]; activeCurriculum?: string | null; period: { academicYear: number; semester: number }; authenticated?: boolean }) {
+export function CatedrasDirectory({ schedules = [], planSubjects = [], initialQuery = "", selectedSchedules = [], activeCurriculum = null, period, authenticated = false }: { schedules?: Schedule[]; planSubjects?: Array<{ id: string; name: string }>; initialQuery?: string; selectedSchedules?: WeekSchedule[]; activeCurriculum?: string | null; period: { academicYear: number; semester: number }; authenticated?: boolean }) {
   const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState(selectedSchedules);
   const [pending, setPending] = useState<Schedule | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [weekMessage, setWeekMessage] = useState("");
+  const [manualBusy, setManualBusy] = useState<string | null>(null);
+  async function addManual(subjectId: string) {
+    setManualBusy(subjectId); setWeekMessage("");
+    try {
+      const response = await fetch("/api/mi-semana/manual", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ subjectId }) });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "No pudimos agregar la materia.");
+      setWeekMessage("Materia agregada. Abrí Mi semana para asignarle día, hora y aula.");
+    } catch (error) { setWeekMessage(error instanceof Error ? error.message : "No pudimos agregar la materia."); }
+    finally { setManualBusy(null); }
+  }
   const comparable = (schedule: Schedule) => selected.filter(item => activeCurriculum && isCurrentSchedule(item, period, activeCurriculum) && item.id !== schedule.id);
   const alternativesFor = (schedule: Schedule) => comparable(schedule).filter(item => sameSubject(item, schedule));
   const conflictsFor = (schedule: Schedule) => detectScheduleConflicts([...comparable(schedule), schedule]).filter(pair => pair.first.id === schedule.id || pair.second.id === schedule.id).map(pair => pair.first.id === schedule.id ? pair.second : pair.first);
@@ -68,6 +79,9 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
   }, [query, schedules]);
   const visibleCardScheduleIds = new Set(filtered.flatMap(item => cardSchedules(item).map(schedule => schedule.id)));
   const unmatchedSchedules = visibleSchedules.filter(schedule => !visibleCardScheduleIds.has(schedule.id));
+  const unscheduledSubjects = planSubjects.filter(subject => !schedules.some(schedule =>
+    (schedule.subject_id === subject.id || normalize(schedule.raw_subject_name) === normalize(subject.name)) && schedule.start_time && schedule.end_time
+  ) && (!query || normalize(subject.name).includes(normalize(query))));
   function groupedSchedules(rows: Schedule[]) {
     const groups = new Map<string, Schedule[]>();
     for (const row of rows) {
@@ -125,6 +139,7 @@ export function CatedrasDirectory({ schedules = [], initialQuery = "", selectedS
         })}
       </div>
     </section>}
+    {authenticated && unscheduledSubjects.length > 0 && <section className="mt-10"><h2 className="font-display text-2xl font-black">Materias sin horario completo</h2><p className="mt-2 text-sm text-ink/60">Podés sumarlas a Mi semana y asignarles un horario personal mientras se confirma el oficial.</p><div className="mt-4 grid gap-3 md:grid-cols-2">{unscheduledSubjects.map(subject => <article key={subject.id} className="card"><h3 className="font-display text-lg font-bold">{subject.name}</h3><button type="button" disabled={manualBusy != null} onClick={() => void addManual(subject.id)} className="mt-3 min-h-11 border-2 border-ink bg-white px-3 text-sm font-bold disabled:opacity-50">Agregar a Mi semana</button></article>)}</div></section>}
     <div className="mt-8 flex flex-wrap gap-4 text-sm font-semibold">
       <a href={CATEDRAS_SOURCE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-coral hover:underline">Publicación original <ExternalLink size={15} /></a>
       <a href={ESTUDIOS_HYS_SOURCE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-coral hover:underline">Programas y contactos 2026 <ExternalLink size={15} /></a>

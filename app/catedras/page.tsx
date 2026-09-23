@@ -15,6 +15,7 @@ export default async function PublicCatedrasPage({ searchParams }: { searchParam
     getSelectedWeekSchedules(user.id),
   ]) : [null, null];
   const curriculum = profileResult?.status === "fulfilled" ? profileResult.value.data?.curriculum : null;
+  const { data: planSubjects } = user && supabase && curriculum ? await supabase.from("subjects").select("id,name").eq("curriculum", curriculum).order("name") : { data: null };
   const selectedSchedules = selectedResult?.status === "fulfilled" ? selectedResult.value : [];
   const period = currentAcademicPeriod();
   const schedules = collapseIdenticalMeetings(dedupePublishedSchedules(publishedSchedules).filter(schedule =>
@@ -27,7 +28,7 @@ export default async function PublicCatedrasPage({ searchParams }: { searchParam
       <p className="eyebrow">Facultad de Artes UNLP</p>
       <h1 className="mt-2 font-display text-4xl font-black">Guía de cátedras</h1>
       <p className="mt-2 max-w-2xl text-ink/60">Buscá materias, contactos y referencias oficiales del Departamento de Multimedia.</p>
-      <div className="mt-8"><CatedrasDirectory schedules={schedules} initialQuery={searchParams?.q ?? ""} selectedSchedules={selectedSchedules} activeCurriculum={curriculum} period={period} authenticated={Boolean(user)} /></div>
+      <div className="mt-8"><CatedrasDirectory schedules={schedules} planSubjects={(planSubjects ?? []).map(item => ({ id: String(item.id), name: item.name }))} initialQuery={searchParams?.q ?? ""} selectedSchedules={selectedSchedules} activeCurriculum={curriculum} period={period} authenticated={Boolean(user)} /></div>
     </div>
   </SessionAwareShell>;
 }

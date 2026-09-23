@@ -17,6 +17,7 @@ export const catedras: CatedraContact[] = [
   { area: "Núcleo Proyectual", materia: "Taller de Diseño Multimedial IV", nombresAlternativos: "Taller de diseño multimedial", contacto: "tdmm0010@gmail.com" },
   { area: "Núcleo Proyectual", materia: "Taller de Diseño Multimedial V", nombresAlternativos: "Taller de Producción final", contacto: "tdmm0010@gmail.com", docentes: "Cátedra A: Prof. Federico Joselevich · Cátedra B: Prof. Jorge Lucotti" },
   { area: "Núcleo de los lenguajes", materia: "Lenguaje Multimedial I", nombresAlternativos: "Introducción a la imagen digital · Introducción a las narrativas transmedia", contacto: "idynt.unlp@gmail.com", redes: [{ label: "@iid_fda", href: "https://www.instagram.com/iid_fda/" }] },
+  { area: "Núcleo de los lenguajes", materia: "Lenguaje visual 1" },
   { area: "Núcleo de los lenguajes", materia: "Lenguaje Multimedial II", nombresAlternativos: "Lenguaje de las narrativas interactivas", contacto: "lni.fda.unlp@gmail.com · lmmdosunlp@gmail.com", redes: [{ label: "@lni_fda", href: "https://www.instagram.com/lni.fda/" }] },
   { area: "Núcleo de los lenguajes", materia: "Lenguaje Multimedial III", nombresAlternativos: "Lenguaje de los nuevos medios", contacto: "lenguajemultimedial3@gmail.com" },
   { area: "Núcleo de los lenguajes", materia: "Lenguaje Multimedial IV", nombresAlternativos: "Poéticas tecnológicas y diseño interactivo", contacto: "lenguajemultimedial4@gmail.com" },

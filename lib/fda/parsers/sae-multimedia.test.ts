@@ -21,4 +21,12 @@ describe("planillas SAE Multimedia", () => {
     expect(parsed.schedules.map(row => row.commission)).toEqual(["Comisión 1", "Comisión 2"]);
     expect(parsed.schedules.every(row => row.semester === 2 && row.endTime === "12:00")).toBe(true);
   });
+
+  it("limita un teórico del primer cuatrimestre aunque la materia sea anual", () => {
+    const csv = 'Año,Materias,Teóricos,Comisión,Día,Horario,Aula\n,"Tecnología Multimedial 1 (A) Plan viejo","Jueves 20 a 22 hs (V) 1° cuatrimestre",Comisión 4,martes,18 a 20 hs,8 Fonseca';
+    const parsed = parseSaeMultimedia(csv, "annual-first", options);
+    expect(parsed.schedules).toHaveLength(2);
+    expect(parsed.schedules.find(row => row.commission === "Teórico")).toMatchObject({ semester: 1, weekday: "Jueves", startTime: "20:00", endTime: "22:00", notes: "Encuentro virtual" });
+    expect(parsed.schedules.find(row => row.commission === "Comisión 4")?.semester).toBeUndefined();
+  });
 });

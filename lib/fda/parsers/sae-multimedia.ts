@@ -48,7 +48,13 @@ export function parseSaeMultimedia(csv: string, variant: "annual-first" | "secon
       const parsed = meetings(dayTime);
       for (const item of parsed) schedules.push(schedule(name, curriculum, semester, commission, { ...item, classroom: clean(row[6] ?? "") || item.classroom, campus: /central/i.test(row[6] ?? "") ? "Central" : /fonseca/i.test(row[6] ?? "") ? "Fonseca" : item.campus }, options));
       const theory = clean(row[2] ?? "");
-      if (theory && /\b(?:lunes|martes|mi[eé]rcoles|jueves|viernes)\b/i.test(theory)) for (const item of meetings(theory)) schedules.push(schedule(name, curriculum, semester, "Teórico", item, options));
+      if (theory && /\b(?:lunes|martes|mi[eé]rcoles|jueves|viernes)\b/i.test(theory)) for (const item of meetings(theory)) {
+        const record = schedule(name, curriculum, semester, "Teórico", item, options);
+        // La materia puede ser anual aunque este encuentro teórico sea sólo del primer cuatrimestre.
+        if (/1\s*[°º]\s*cuatrimestre|primer\s+cuatrimestre/i.test(theory)) record.semester = 1;
+        if (/\(V\)/i.test(theory)) record.notes = "Encuentro virtual";
+        schedules.push(record);
+      }
     } else {
       if (row[0]?.trim() && !/^materias\b/i.test(row[0])) name = clean(row[0]);
       if (!name || !row[0] && !row[1] && !row[2]) continue;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Megaphone, Upload, UserRound } from "lucide-react";
+import { CalendarRange, Megaphone, Upload, UserRound } from "lucide-react";
 import { BrandMark } from "@/components/brand/brand-mark";
 
 type DashboardHeaderProps = {
@@ -15,6 +15,7 @@ export function DashboardHeader({ name, isAdmin = false }: DashboardHeaderProps)
         <BrandMark compact href="/dashboard" />
         <div className="flex items-center gap-3">
           {isAdmin && <Link href="/admin/cartelera" aria-label="Subir contenido" className="flex min-h-11 items-center gap-2 border-2 border-cronopios-ink bg-cronopios-magenta px-3 py-2 text-xs font-black shadow-[3px_3px_0_0_#221E21] hover:-translate-y-0.5"><Upload size={17} /><span className="hidden sm:inline">Subir contenido</span></Link>}
+          {isAdmin && <Link href="/admin/horarios" aria-label="Editar horarios" className="flex min-h-11 items-center gap-2 border-2 border-cronopios-ink bg-white px-3 py-2 text-xs font-black shadow-[3px_3px_0_0_#221E21]"><CalendarRange size={17} /><span className="hidden sm:inline">Horarios</span></Link>}
           <span className="hidden text-right text-xs font-bold uppercase tracking-widest text-cronopios-ink/55 sm:block">
             {name || "Estudiante"}
           </span>

@@ -50,8 +50,14 @@ export async function runSourceImport(sourceKey: string): Promise<ImportResult> 
     };
   }
   if (source.parserKey === "google-sheet-grid") {
+    const schedules = parseGoogleSheetGrid(fetched.buffer.toString("utf8"), { sourceUrl: source.resourceUrl, sourceLabel: source.sourceLabel, curriculum: source.curriculum, semester: source.semester, academicYear: new Date().getFullYear() });
+    if (sourceKey === "multimedia-schedules-old") for (const item of schedules) {
+      if (/^lenguaje\s+visual\s+(?:1|i)$/i.test(item.rawSubjectName.trim())) item.curriculum = "new";
+      // La planilla SAE confirma que este teórico del jueves sólo se dicta en el primer cuatrimestre.
+      if (/^tecnolog[ií]a\s+multimedial\s+(?:1|i)$/i.test(item.rawSubjectName.trim()) && item.weekday === "Jueves" && item.startTime === "20:00") item.semester = 1;
+    }
     return {
-      schedules: parseGoogleSheetGrid(fetched.buffer.toString("utf8"), { sourceUrl: source.resourceUrl, sourceLabel: source.sourceLabel, curriculum: source.curriculum, semester: source.semester, academicYear: new Date().getFullYear() }),
+      schedules,
       events: [],
       warnings: [],
       checksum: fetched.checksum
