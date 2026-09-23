@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const period = currentAcademicPeriod();
   const { data: existing, error: readError } = await supabase.from("user_custom_schedule_slots")
     .select("id").eq("user_id", user.id).eq("subject_id", subjectId)
-    .eq("academic_year", period.academicYear).eq("semester", period.semester).maybeSingle();
+    .eq("academic_year", period.academicYear).eq("semester", period.semester).limit(1).maybeSingle();
   if (readError) return NextResponse.json({ error: "No pudimos consultar tu semana." }, { status: 503 });
   if (existing) return NextResponse.json({ ok: true, id: existing.id });
   const { data, error } = await supabase.from("user_custom_schedule_slots")

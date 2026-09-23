@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { CalendarDays, GraduationCap, Home, Search } from "lucide-react";
+import { CalendarDays, GraduationCap, Home, Megaphone } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const items: Array<{ href: Route; label: string; icon: typeof Home }> = [
   { href: "/dashboard", label: "Inicio", icon: Home },
   { href: "/dashboard/recorrido", label: "Recorrido", icon: GraduationCap },
-  { href: "/agenda", label: "Agenda", icon: CalendarDays },
-  { href: "/catedras", label: "Cátedras", icon: Search }
+  { href: "/dashboard/agenda", label: "Mi agenda", icon: CalendarDays },
+  { href: "/cartelera", label: "Cartelera", icon: Megaphone }
 ];
 
 export function MobileBottomNav() {

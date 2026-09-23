@@ -6,6 +6,10 @@ const schedule = (id: number, weekday: string, start_time: string | null, end_ti
 });
 
 describe("Mi semana", () => {
+  it("calcula el período con fecha local de Buenos Aires", () => {
+    expect(currentAcademicPeriod(new Date("2026-07-01T01:00:00Z"))).toEqual({ academicYear: 2026, semester: 1 });
+    expect(currentAcademicPeriod(new Date("2026-07-01T04:00:00Z"))).toEqual({ academicYear: 2026, semester: 2 });
+  });
   it("no marca conflicto en días distintos", () => expect(detectScheduleConflicts([schedule(1, "Lunes", "08:00", "12:00"), schedule(2, "Martes", "09:00", "11:00")])).toHaveLength(0));
   it("no marca conflicto si una termina cuando la otra empieza", () => expect(detectScheduleConflicts([schedule(1, "Lunes", "08:00", "12:00"), schedule(2, "Lunes", "12:00", "14:00")])).toHaveLength(0));
   it("detecta intersección real", () => expect(detectScheduleConflicts([schedule(1, "Lunes", "08:00", "12:00"), schedule(2, "Lunes", "11:30", "14:00")])).toHaveLength(1));

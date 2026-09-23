@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, Lock, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
@@ -470,6 +471,7 @@ export function MateriasManager() {
                     </div>}
                   </div>
                   {!unlocked && missingRequirements.length > 0 && <p className="relative z-[1] mt-2 pl-8 text-xs font-medium text-ink/55">Necesitás aprobar o regularizar: {missingRequirements.map(required => required.nombre).join(", ")} para poder cursarla.</p>}
+                  {courseStatus?.status === "available" && <Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(subject.id))}`} className="relative z-[1] mt-2 inline-flex min-h-10 items-center text-xs font-bold text-cronopios-magenta underline">Agregar a Mi agenda</Link>}
                 </div>;
               })}
             </div>

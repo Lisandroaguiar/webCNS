@@ -33,7 +33,7 @@ export function WeeklyPlanner({ initialSchedules, initialCustomSlots = [] }: { i
       if (!response.ok) throw new Error(result.error ?? "No pudimos quitar el horario.");
       if (schedule.status === "personal") setCustom(current => current.filter(item => item.id !== -schedule.id));
       else setSchedules(current => current.filter(item => item.id !== schedule.id));
-      setMessage("Horario quitado de Mi semana.");
+      setMessage("Horario quitado de Mi agenda.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "No pudimos actualizar tu semana."); }
     finally { setBusyId(null); }
   }

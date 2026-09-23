@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   if (error && error.code !== "23505") return NextResponse.json({ error: "No pudimos agregar este horario." }, { status: 422 });
   if (body.replaceSameSubject === true && alternatives.length) {
     const { error: deleteError } = await supabase.from("user_schedule_selections").delete().eq("user_id", user.id).in("course_schedule_id", alternatives.map(item => item.id));
-    if (deleteError) return NextResponse.json({ error: "Agregamos la comisión, pero no pudimos quitar la anterior. Revisá Mi semana." }, { status: 409 });
+    if (deleteError) return NextResponse.json({ error: "Agregamos la comisión, pero no pudimos quitar la anterior. Revisá Mi agenda." }, { status: 409 });
   }
   return NextResponse.json({ ok: true, replacedIds: body.replaceSameSubject === true ? alternatives.map(item => item.id) : [] });
 }

@@ -14,7 +14,7 @@ function CourseCard({ item }: { item: CourseEligibility }) {
       {item.requirements.length > 0 && <><p className="font-bold">Requisitos registrados</p><ul className="mt-2 space-y-1">{item.requirements.map(requirement => <li key={`${requirement.subjectId}-${requirement.kind}`}>{requirement.satisfied ? "✓" : "○"} {requirement.name} · {requirement.kind === "passed" ? "aprobada" : "regular o aprobada"}</li>)}</ul></>}
       {item.status === "blocked" && <p className="mt-3 font-bold">Todavía necesitás {item.missingRequirements.map(requirement => requirement.name).join(", ")}.</p>}
       {item.requiredBy.length > 0 && <p className="mt-4 text-ink/65">Es requisito para: {item.requiredBy.join(", ")}.</p>}
-      {item.status === "available" && <Link href={`/catedras?q=${encodeURIComponent(item.subject.name)}`} className="mt-4 inline-flex min-h-11 items-center border-2 border-ink bg-cronopios-green px-4 font-bold">Buscar en cátedras</Link>}
+      {item.status === "available" && <div className="mt-4 flex flex-wrap gap-3"><Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(item.subject.id))}`} className="inline-flex min-h-11 items-center border-2 border-ink bg-cronopios-green px-4 font-bold">Agregar a Mi agenda</Link><Link href={`/catedras?q=${encodeURIComponent(item.subject.name)}`} className="inline-flex min-h-11 items-center px-2 font-bold underline">Ver cátedra</Link></div>}
     </div>
   </details>;
 }

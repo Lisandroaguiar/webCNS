@@ -19,7 +19,9 @@ export type WeekSchedule = {
 export const weekDays = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] as const;
 
 export function currentAcademicPeriod(date = new Date()) {
-  return { academicYear: date.getFullYear(), semester: date.getMonth() < 6 ? 1 : 2 };
+  const local = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit" }).format(date);
+  const [year, month] = local.split("-").map(Number);
+  return { academicYear: year, semester: month < 7 ? 1 : 2 };
 }
 
 export function isCurrentSchedule(schedule: WeekSchedule, period: { academicYear: number; semester: number }, curriculum: string) {
