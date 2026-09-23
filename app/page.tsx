@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { CalendarDays, Search } from "lucide-react";
 import { PublicHeader } from "@/components/app-shell/public-header";
 import { GridPaper, PaperScrap, Tape } from "@/components/visual/paper";
@@ -29,8 +30,8 @@ export default async function Home() {
         <div className="relative min-w-0 max-w-full border-2 border-cronopios-ink bg-cronopios-ink p-4 text-white shadow-[5px_5px_0_0_#19F094] sm:p-5 md:rotate-2 md:shadow-[8px_8px_0_0_#19F094]">
           <Tape className="-top-5 left-1/2 -translate-x-1/2" />
           <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-cronopios-green">archivo vivo · artes</p>
-          <FdaPlate variant="moises-wave" className="mt-5 h-[260px] border-white" />
-          <p className="mt-4 font-display text-xl font-black leading-tight">Una mesita para moverse<br />por la facu.</p>
+          <FdaPlate variant="david-pixel" photo priority className="mt-5 h-[260px] border-white" />
+          <div className="mt-4 flex items-end justify-between gap-3"><p className="font-display text-xl font-black leading-tight">Una mesita para moverse<br />por la facu.</p><Image src="/identity/fda/moises-source.jpg" alt="" width={64} height={64} className="h-16 w-16 shrink-0 border-2 border-white object-cover grayscale contrast-150" /></div>
           <FdaDisciplineStrip className="mt-4 border border-white/40" />
         </div>
       </div></section>
