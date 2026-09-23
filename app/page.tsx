@@ -1,43 +1,60 @@
-import Link from "next/link";
 import Image from "next/image";
-import { CalendarDays, Search } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, BookOpen, CalendarDays, LogIn, Megaphone, Search } from "lucide-react";
 import { PublicHeader } from "@/components/app-shell/public-header";
-import { GridPaper, PaperScrap, Tape } from "@/components/visual/paper";
+import { EditorialSticker, FdaDisciplineStrip } from "@/components/identity/fda-identity";
 import { getPublishedCommunityPosts } from "@/lib/supabase/public-data";
-import { FdaPlate, FdaDisciplineStrip } from "@/components/identity/fda-identity";
+
+const publicLinks = [
+  { href: "/registro", title: "Armar mi recorrido", caption: "Explorá la facu a tu manera", icon: BookOpen, accent: true },
+  { href: "/login", title: "Ingresar", caption: "Ya tengo una cuenta", icon: LogIn, dark: true },
+  { href: "/catedras", title: "Explorar cátedras", caption: "Buscá por carrera o área", icon: Search },
+  { href: "/agenda", title: "Ver Fechas FDA", caption: "Calendario académico y eventos", icon: CalendarDays },
+] as const;
 
 export default async function Home() {
-  const communityPosts = (await getPublishedCommunityPosts()).filter(post => !post.event_date || post.event_date.slice(0, 10) >= new Date().toISOString().slice(0, 10)).slice(0, 2);
-  return (
-    <main className="min-h-screen bg-cronopios-paper text-cronopios-ink">
-      <PublicHeader />
-      <section className="overflow-clip border-b-2 border-ink bg-cronopios-magenta">
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-12 sm:px-5 md:grid-cols-[1.15fr_0.85fr] md:items-center md:gap-10 md:px-8 md:py-24">
-        <div className="relative min-w-0">
-          <Tape className="left-0 top-[-1.75rem] rotate-3" />
-          <p className="mb-5 inline-block max-w-full border-2 border-ink bg-cronopios-green px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-[0.12em] sm:text-xs sm:tracking-[0.2em]">Cronopios · Facultad de Artes UNLP</p>
-          <h1 className="editorial-title max-w-2xl text-[clamp(2.45rem,12vw,4.5rem)]">Todo lo que necesitás para moverte por la facu.</h1>
-          <p className="mt-7 max-w-lg text-lg leading-relaxed text-cronopios-ink/70">Mesita Virtual reúne tu recorrido académico, las fechas importantes y la información de cátedras en un solo lugar.</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/registro" className="min-h-11 border-2 border-cronopios-ink bg-cronopios-pink px-5 py-3 font-bold shadow-[4px_4px_0_0_#221E21] hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cronopios-magenta">Armar mi recorrido</Link>
-            <Link href="/login" className="min-h-11 border-2 border-cronopios-ink bg-white px-5 py-3 font-bold hover:bg-cronopios-green focus-visible:outline focus-visible:outline-2 focus-visible:outline-cronopios-magenta">Ya tengo cuenta</Link>
-          </div>
-          <div className="mt-8 grid max-w-lg gap-3 sm:grid-cols-2">
-            <Link href="/catedras" className="flex min-h-14 items-center gap-3 border-2 border-cronopios-ink bg-white px-4 py-3 font-bold shadow-[3px_3px_0_0_#221E21] hover:-translate-y-0.5"><Search size={19} /> Buscar una cátedra</Link>
-            <Link href="/agenda" className="flex min-h-14 items-center gap-3 border-2 border-cronopios-ink bg-white px-4 py-3 font-bold shadow-[3px_3px_0_0_#221E21] hover:-translate-y-0.5"><CalendarDays size={19} /> Ver próximas fechas</Link>
-          </div>
+  const communityPosts = (await getPublishedCommunityPosts())
+    .filter(post => !post.event_date || post.event_date.slice(0, 10) >= new Date().toISOString().slice(0, 10))
+    .slice(0, 2);
+
+  return <main className="public-home min-h-screen text-cronopios-ink">
+    <PublicHeader />
+    <div className="public-home__main mx-auto w-full max-w-6xl px-4 pb-12 sm:px-5 md:px-8">
+      <section className="public-home-hero" aria-labelledby="public-home-title">
+        <div className="public-home-hero__copy">
+          <p className="public-home-hero__brand">MESITA VIRTUAL <span>por Cronopios</span></p>
+          <p className="public-home-hero__greeting">BUEN DÍA <span aria-hidden>✳</span></p>
+          <h1 id="public-home-title">HOY<br />ANDAMOS<br /><em>POR ARTES.</em></h1>
+          <EditorialSticker className="public-home-hero__sticker">la facu también pasa acá</EditorialSticker>
+          <p className="public-home-hero__mark">FDA / UNLP · LA PLATA</p>
         </div>
-        <div className="relative min-w-0 max-w-full border-2 border-cronopios-ink bg-cronopios-ink p-4 text-white shadow-[5px_5px_0_0_#19F094] sm:p-5 md:rotate-2 md:shadow-[8px_8px_0_0_#19F094]">
-          <Tape className="-top-5 left-1/2 -translate-x-1/2" />
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-cronopios-green">archivo vivo · artes</p>
-          <FdaPlate variant="david-pixel" photo priority className="mt-5 h-[260px] border-white" />
-          <div className="mt-4 flex items-end justify-between gap-3"><p className="font-display text-xl font-black leading-tight">Una mesita para moverse<br />por la facu.</p><Image src="/identity/fda/moises-source.jpg" alt="" width={64} height={64} className="h-16 w-16 shrink-0 border-2 border-white object-cover grayscale contrast-150" /></div>
-          <FdaDisciplineStrip className="mt-4 border border-white/40" />
+        <div className="public-home-hero__art" aria-hidden="true">
+          <Image src="/identity/fda/david-source.jpg" alt="" width={332} height={332} priority className="public-home-hero__david" />
+          <span className="public-home-hero__registration">＋</span>
+          <span className="public-home-hero__timecode">00:03:26:12</span>
         </div>
-      </div></section>
-      <section className="mx-auto grid w-full max-w-6xl gap-5 overflow-clip px-4 py-10 sm:px-5 md:grid-cols-2 md:px-8"><GridPaper className="max-w-full p-5 sm:p-7"><p className="eyebrow">Fechas FDA</p><h2 className="mt-4 font-display text-3xl font-black">Fechas oficiales, sin vueltas.</h2><p className="mt-3 max-w-md text-ink/65">Consultá inscripciones, llamados y próximos eventos desde una cartelera clara.</p></GridPaper><PaperScrap className="max-w-full p-5 sm:p-7"><p className="eyebrow">Tu recorrido</p><h2 className="mt-4 font-display text-3xl font-black">El plan completo, a mano.</h2><p className="mt-3 max-w-md text-ink/65">Marcá materias, mirá el avance y encontrá la información que necesitás.</p></PaperScrap></section>
-      <section className="border-y-2 border-ink bg-white"><div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-5 md:px-8"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Cartelera Cronopios</p><h2 className="mt-3 font-display text-3xl font-black">Actividades y encuentros</h2></div><Link href="/cartelera" className="button-primary">Ver toda la cartelera</Link></div><div className="mt-6 grid gap-4 md:grid-cols-2">{communityPosts.map(post => <article key={post.id} className="border-2 border-ink bg-cronopios-paper p-5 shadow-[4px_4px_0_0_#221E21]"><p className="font-mono text-xs font-bold uppercase tracking-widest text-cronopios-magenta">{post.event_type}</p><h3 className="mt-2 font-display text-xl font-black">{post.title}</h3><p className="mt-3 text-sm font-bold">{post.event_date ? new Date(`${post.event_date.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Fecha a confirmar"}{post.location ? ` · ${post.location}` : ""}</p></article>)}{!communityPosts.length && <p className="text-sm text-ink/60">Pronto vamos a publicar nuevas actividades.</p>}</div></div></section>
-      <footer className="mx-auto max-w-6xl px-5 pb-8 font-mono text-xs font-bold uppercase tracking-widest text-cronopios-ink/55 md:px-8">Cronopios · Centro de Estudiantes · Facultad de Artes</footer>
-    </main>
-  );
+      </section>
+
+      <FdaDisciplineStrip className="public-home__disciplines" />
+
+      <nav aria-label="Accesos de Inicio" className="public-home-links">
+        {publicLinks.map(({ href, title, caption, icon: Icon, ...tone }) => <Link key={href} href={href} className={`public-home-link ${"accent" in tone ? "public-home-link--accent" : "dark" in tone ? "public-home-link--dark" : ""}`}>
+          <Icon aria-hidden size={27} strokeWidth={2.3} />
+          <span><strong>{title}</strong><small>{caption}</small></span>
+          <ArrowRight aria-hidden size={18} className="public-home-link__arrow" />
+        </Link>)}
+      </nav>
+
+      <section className="public-home-mesita" aria-labelledby="public-home-mesita-title">
+        <div className="public-home-mesita__copy"><p className="public-home-mesita__overline">ESTUDIAR · CREAR · ENCONTRARNOS</p><h2 id="public-home-mesita-title">MESITA VIRTUAL</h2><p>Tu recorrido, tu agenda y la info útil de la facu en un solo lugar.</p></div>
+        <div className="public-home-mesita__art" aria-hidden="true"><Image src="/identity/fda/moises-source.jpg" alt="" width={180} height={180} /><span>ARTE<br />TAMBIÉN<br />ENCUENTRO</span></div>
+      </section>
+
+      <section className="public-home-cartelera" aria-labelledby="public-home-cartelera-title">
+        <div className="public-home-cartelera__heading"><Megaphone aria-hidden size={30} /><div><p>COMUNIDAD / CRONOPIOS</p><h2 id="public-home-cartelera-title">CARTELERA</h2></div><Link href="/cartelera">Ver cartelera <ArrowRight aria-hidden size={17} /></Link></div>
+        {communityPosts.length ? <div className="public-home-cartelera__posts">{communityPosts.map(post => <article key={post.id}><p>{post.event_type}</p><h3>{post.title}</h3><small>{post.event_date ? new Date(`${post.event_date.slice(0, 10)}T12:00:00`).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" }) : "Fecha a confirmar"}{post.location ? ` · ${post.location}` : ""}</small></article>)}</div> : <p className="public-home-cartelera__empty">Pronto vamos a publicar nuevas actividades.</p>}
+      </section>
+    </div>
+    <footer className="mx-auto max-w-6xl px-5 pb-8 font-mono text-xs font-bold uppercase tracking-widest text-cronopios-ink/55 md:px-8">Cronopios · Centro de Estudiantes · Facultad de Artes</footer>
+  </main>;
 }

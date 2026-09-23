@@ -287,3 +287,80 @@ img, svg, video, canvas { max-width: 100%; }
   .dashboard-available__art { min-height: 190px; }
   .dashboard-available__art .fda-plate__figure { right: -25%; bottom: -20%; width: 156%; }
 }
+
+/* Public Inicio: editorial cover with real, accessible navigation. */
+.public-home { background: #f6f0eb; background-image: radial-gradient(#221e2118 .5px, transparent .5px); background-size: 6px 6px; }
+.public-home__main { padding-top: 18px; }
+.public-home-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(165px, 43%); min-height: 320px; overflow: hidden; border: 2px solid var(--cronopios-ink); background: #f9f4ef; box-shadow: 5px 5px 0 var(--cronopios-ink); }
+.public-home-hero__copy { position: relative; z-index: 2; min-width: 0; padding: 23px 0 25px 25px; }
+.public-home-hero__brand { font: 900 18px/.95 var(--font-space-grotesk), sans-serif; letter-spacing: -.06em; }
+.public-home-hero__brand span { display: block; margin-top: 4px; font: 800 10px/1.2 ui-monospace, monospace; letter-spacing: .02em; }
+.public-home-hero__greeting { margin-top: 24px; font: 800 11px/1.1 ui-monospace, monospace; letter-spacing: .2em; }
+.public-home-hero__greeting span { color: #c5008b; font-size: 17px; }
+.public-home-hero h1 { position: relative; width: max-content; max-width: 133%; margin-top: 7px; font: 1000 clamp(2.8rem, 6.3vw, 5.75rem)/.82 var(--font-space-grotesk), sans-serif; letter-spacing: -.09em; }
+.public-home-hero h1 em { display: inline-block; margin-top: 7px; padding: 5px 13px 9px 4px; background: var(--cronopios-magenta); color: white; font-style: normal; clip-path: polygon(0 5%, 97% 0, 100% 93%, 2% 100%); text-shadow: 1px 1px var(--cronopios-ink); }
+.public-home-hero__sticker { position: absolute; right: 0; bottom: 35px; z-index: 3; }
+.public-home-hero__mark { margin-top: 17px; font: 800 9px/1.2 ui-monospace, monospace; letter-spacing: .1em; }
+.public-home-hero__art { position: relative; min-width: 0; overflow: hidden; background: linear-gradient(110deg, transparent 32%, var(--cronopios-magenta) 32% 78%, #221e21 78%); }
+.public-home-hero__art::after { position: absolute; inset: 0; background: radial-gradient(#221e21 1px, transparent 1px) 0 0/4px 4px; opacity: .2; content: ""; pointer-events: none; }
+.public-home-hero__david { position: absolute; right: -4%; bottom: -12%; width: 113%; height: 122%; max-width: none; object-fit: cover; object-position: 52% 21%; filter: grayscale(1) contrast(2.25); mix-blend-mode: multiply; }
+.public-home-hero__registration { position: absolute; top: 29%; left: 5%; z-index: 2; font: 900 26px ui-monospace, monospace; }
+.public-home-hero__timecode { position: absolute; right: 9px; bottom: 12px; z-index: 2; padding: 3px 5px; background: var(--cronopios-ink); color: white; font: 800 9px ui-monospace, monospace; }
+.public-home__disciplines { margin-top: 5px; border: 0; background: transparent; }
+.public-home-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.public-home-link { display: flex; min-width: 0; min-height: 91px; align-items: center; gap: 11px; padding: 13px 15px; border: 2px solid var(--cronopios-ink); background: white; box-shadow: 3px 3px 0 #221e21; transition: transform .15s ease; }
+.public-home-link:hover { transform: translateY(-2px); }
+.public-home-link > svg:first-child { flex: 0 0 auto; }
+.public-home-link span { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.public-home-link strong { font: 900 clamp(13px, 2.2vw, 20px)/1 var(--font-space-grotesk), sans-serif; letter-spacing: -.04em; }
+.public-home-link small { font-size: 10px; line-height: 1.15; }
+.public-home-link__arrow { flex: 0 0 auto; margin-left: auto; }
+.public-home-link--accent { background: var(--cronopios-magenta); color: white; }
+.public-home-link--dark { background: var(--cronopios-ink); color: white; }
+.public-home-mesita { display: grid; grid-template-columns: minmax(0, 1fr) minmax(125px, 33%); min-height: 155px; margin-top: 21px; overflow: hidden; border: 2px solid var(--cronopios-ink); background: #fffdf9; }
+.public-home-mesita__copy { padding: 18px 20px; }
+.public-home-mesita__overline { font: 800 9px ui-monospace, monospace; letter-spacing: .12em; }
+.public-home-mesita h2 { display: inline-block; margin-top: 7px; padding: 2px 6px; background: var(--cronopios-magenta); font: 900 clamp(20px, 3vw, 30px)/1 var(--font-space-grotesk), sans-serif; letter-spacing: -.06em; }
+.public-home-mesita__copy > p:last-child { max-width: 30ch; margin-top: 9px; font-size: 12px; line-height: 1.35; }
+.public-home-mesita__art { position: relative; min-width: 0; overflow: hidden; background: var(--cronopios-magenta); }
+.public-home-mesita__art img { position: absolute; right: 11%; bottom: -18%; width: 80%; height: 125%; max-width: none; object-fit: cover; object-position: center 23%; filter: grayscale(1) contrast(2); mix-blend-mode: multiply; }
+.public-home-mesita__art span { position: absolute; right: 5px; bottom: 8px; z-index: 1; padding: 3px; background: #fffdf9; font: 900 8px/.95 ui-monospace, monospace; transform: rotate(-6deg); }
+.public-home-cartelera { margin-top: 21px; padding: 17px; border: 2px solid var(--cronopios-ink); background: #fffdf9; }
+.public-home-cartelera__heading { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.public-home-cartelera__heading > svg { flex: 0 0 auto; color: #d0008a; }
+.public-home-cartelera__heading p { font: 800 9px ui-monospace, monospace; letter-spacing: .12em; }
+.public-home-cartelera h2 { font: 900 26px/.95 var(--font-space-grotesk), sans-serif; letter-spacing: -.07em; }
+.public-home-cartelera__heading a { display: inline-flex; min-height: 44px; align-items: center; gap: 4px; margin-left: auto; padding: 8px 10px; border: 2px solid var(--cronopios-ink); background: var(--cronopios-magenta); font-size: 12px; font-weight: 800; }
+.public-home-cartelera__posts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.public-home-cartelera__posts article { min-width: 0; padding: 12px; border: 1px solid var(--cronopios-ink); background: var(--cronopios-paper); }
+.public-home-cartelera__posts article p { color: #ae0077; font: 800 9px ui-monospace, monospace; text-transform: uppercase; }
+.public-home-cartelera__posts h3 { margin-top: 5px; font-size: 14px; font-weight: 900; overflow-wrap: anywhere; }
+.public-home-cartelera__posts small { display: block; margin-top: 6px; font-size: 10px; }
+.public-home-cartelera__empty { margin-top: 12px; font-size: 13px; }
+@media (max-width: 639px) {
+  .public-home__main { padding-top: 11px; }
+  .public-home-hero { grid-template-columns: minmax(0, 1fr) 42%; min-height: 268px; box-shadow: 3px 3px 0 var(--cronopios-ink); }
+  .public-home-hero__copy { padding: 12px 0 14px 10px; }
+  .public-home-hero__brand { font-size: 13px; }
+  .public-home-hero__brand span { font-size: 8px; }
+  .public-home-hero__greeting { margin-top: 25px; font-size: 9px; }
+  .public-home-hero h1 { max-width: 155%; font-size: clamp(2.05rem, 8.8vw, 3.5rem); }
+  .public-home-hero__sticker { right: -15px; bottom: 34px; font-size: 7px; }
+  .public-home-hero__mark { position: absolute; bottom: 10px; left: 10px; font-size: 8px; }
+  .public-home-hero__david { right: -34%; bottom: -9%; width: 160%; height: 118%; }
+  .public-home-hero__timecode { right: 4px; bottom: 6px; font-size: 7px; }
+  .public-home__disciplines { margin-top: 4px; font-size: 7px; }
+  .public-home-links { gap: 8px; margin-top: 9px; }
+  .public-home-link { min-height: 87px; gap: 6px; padding: 9px; }
+  .public-home-link > svg:first-child { width: 22px; }
+  .public-home-link strong { font-size: 12px; }
+  .public-home-link small { font-size: 9px; }
+  .public-home-link__arrow { width: 13px; }
+  .public-home-mesita { grid-template-columns: minmax(0, 1fr) 38%; margin-top: 16px; }
+  .public-home-mesita__copy { padding: 12px; }
+  .public-home-mesita__overline { font-size: 7px; }
+  .public-home-mesita h2 { font-size: 19px; }
+  .public-home-mesita__copy > p:last-child { font-size: 11px; }
+  .public-home-cartelera { margin-top: 16px; padding: 12px; }
+  .public-home-cartelera__posts { grid-template-columns: minmax(0, 1fr); }
+}
