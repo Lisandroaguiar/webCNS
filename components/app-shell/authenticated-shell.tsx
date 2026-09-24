@@ -10,7 +10,7 @@ import { FeedbackLink } from "@/components/feedback-link";
 import { isAdminEmail } from "@/lib/auth/admin";
 
 export function AuthenticatedShell({ user, children }: { user: User | null; children: React.ReactNode }) {
-  const name = user?.user_metadata?.nombre || user?.email;
+  const name = user?.user_metadata?.nombre || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
   const isAdmin = isAdminEmail(user?.email);
   return <div className="min-h-screen bg-cronopios-paper">
     <aside className="fixed inset-y-0 hidden w-64 flex-col border-r-2 border-cronopios-ink bg-white p-6 md:flex">

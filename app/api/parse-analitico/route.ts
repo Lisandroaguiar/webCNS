@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     const data = new Uint8Array(await file.arrayBuffer());
-    // En el runtime Node no hay Worker disponible. PDF.js 6 mantiene esta
+    // En el runtime Node no hay Worker disponible. PDF.js mantiene esta
     // opción en ejecución aunque no la exponga en sus tipos actuales.
     const document = await pdfjsLib.getDocument(
       { data, disableWorker: true } as Parameters<typeof pdfjsLib.getDocument>[0]

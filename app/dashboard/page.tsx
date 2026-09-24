@@ -55,7 +55,9 @@ export default async function DashboardPage() {
   if (nextEvent && !upcoming.some(item => item.kind === "fda" && item.id === nextEvent.event.id && item.date === nextEvent.date)) upcoming.push({ key: `fda-${nextEvent.event.id}-${nextEvent.date}`, kind: "fda", title: nextEvent.event.title, date: nextEvent.date, start_time: null, end_time: null, id: nextEvent.event.id });
   const nextItems = sortAgendaItems(upcoming).slice(0, 3);
   const highlights = posts.filter(post => !post.event_date || post.event_date.slice(0, 10) >= today).slice(0, 2);
-  const displayName = profile?.full_name || user?.user_metadata?.nombre || "estudiante";
+  const storedName = profile?.full_name?.trim();
+  const displayName = storedName && storedName !== "Estudiante" ? storedName :
+    user?.user_metadata?.nombre || user?.user_metadata?.full_name || user?.user_metadata?.name || "estudiante";
   return <div className="min-w-0 space-y-5 sm:space-y-6">
     <FdaHomeHero name={displayName} />
     <div className="dashboard-primary-grid"><section className="card dashboard-progress" aria-labelledby="dashboard-recorrido"><div className="dashboard-progress__top"><div><p className="dashboard-section-index">01 / TRAYECTO</p><h2 id="dashboard-recorrido" className="dashboard-section-title">Tu recorrido</h2></div><span aria-hidden className="dashboard-progress__route">● · · ● · · ◎</span></div><div className="dashboard-progress__body"><p className="dashboard-progress__number">{progress}<span>%</span></p><div className="dashboard-progress__detail"><p><strong>{approved} de {curriculumSubjects.length}</strong> materias aprobadas</p><p>Promedio <strong>{average}</strong></p><Link href="/dashboard/recorrido" className="dashboard-text-link">Ver recorrido <ArrowRight size={16} /></Link></div></div><div className="dashboard-progress__bar" role="progressbar" aria-label="Materias aprobadas" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div style={{ width: `${progress}%` }} /></div></section>
