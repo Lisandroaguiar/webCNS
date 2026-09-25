@@ -137,14 +137,14 @@ export function OnboardingShell() {
           {file ? file.name : "Seleccionar PDF"}
           <input className="sr-only" type="file" accept=".pdf,application/pdf" onChange={event => setFile(event.target.files?.[0] ?? null)} />
         </label>
-        <button className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 border-2 border-cronopios-ink bg-cronopios-green px-4 py-3 font-bold disabled:cursor-not-allowed disabled:opacity-50" disabled={!file || loading} onClick={() => void processPdf()}>{loading ? <><Loader2 className="animate-spin" size={18} /> Procesando...</> : <>Procesar analítico <ArrowRight size={18} /></>}</button>
+        <button className="button-primary mt-3 w-full" disabled={!file || loading} onClick={() => void processPdf()}>{loading ? <><Loader2 className="animate-spin" size={18} /> Procesando...</> : <>Procesar analítico <ArrowRight size={18} /></>}</button>
         <p className="mt-4 text-xs text-cronopios-ink/65">Usamos el archivo para detectar tus materias.</p>
       </article>
       <article className="border-2 border-cronopios-ink bg-white p-5 shadow-[5px_5px_0_0_#221E21]">
         <p className="font-mono text-xs font-bold uppercase tracking-widest text-cronopios-magenta">Siempre podés cambiarlo</p><h2 className="mt-2 font-display text-2xl font-black">Cargar a mano</h2><p className="mt-3 text-sm text-cronopios-ink/65">Elegí tu carrera y plan para empezar con el recorrido vacío.</p>
         <label className="mt-5 block text-sm font-bold" htmlFor="onboarding-degree">Carrera</label><select id="onboarding-degree" className="input mt-2" value={degree} onChange={event => setDegree(event.target.value as DegreeValue)}>{degreeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
         <label className="mt-4 block text-sm font-bold" htmlFor="onboarding-curriculum">Plan</label><select id="onboarding-curriculum" className="input mt-2" value={curriculum} onChange={event => setCurriculum(event.target.value as CurriculumValue)}>{curriculumOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-        <button className="button-primary mt-5 w-full" disabled={loading} onClick={() => void startManual()}>{loading ? "Preparando..." : "Empezar a mano"}</button>
+        <button className="button-secondary mt-5 w-full" disabled={loading} onClick={() => void startManual()}>{loading ? "Preparando..." : "Empezar a mano"}</button>
       </article>
     </div>}
     {step === "manual" && <div className="card mt-8"><CheckCircle2 className="text-cronopios-magenta" /><h2 className="mt-3 font-display text-2xl font-black">Tu plan está listo</h2><p className="mt-2 text-sm text-cronopios-ink/65">Podés empezar a marcar materias desde Recorrido. Después podés modificar todo.</p><Link href="/dashboard/recorrido" prefetch className="button-primary mt-5 inline-block">Ir a Recorrido</Link></div>}

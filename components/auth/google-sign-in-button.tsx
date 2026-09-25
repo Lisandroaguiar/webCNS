@@ -28,7 +28,7 @@ export function GoogleSignInButton() {
 
   return <div className="mt-6">
     <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-wide text-ink/50"><span className="h-px flex-1 bg-ink/20" />o<span className="h-px flex-1 bg-ink/20" /></div>
-    <button className="w-full border-2 border-cronopios-ink bg-white px-4 py-3 font-semibold text-ink hover:bg-cronopios-mint/20 disabled:opacity-60" type="button" onClick={signIn} disabled={loading}>
+    <button className="button-secondary w-full" type="button" onClick={signIn} disabled={loading}>
       {loading ? "Conectando con Google..." : "Continuar con Google"}
     </button>
     {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}

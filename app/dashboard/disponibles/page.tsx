@@ -7,14 +7,14 @@ import { getCourseEligibility, type CourseEligibility, type EligibilitySubject }
 function CourseCard({ item }: { item: CourseEligibility }) {
   const label = item.status === "available" ? "Ya podés cursarla" : item.status === "blocked" ? `Te faltan ${item.missingRequirements.length} requisitos` : item.status === "unknown" ? "Revisión manual" : item.status === "in_progress" ? "Regularizada" : "Aprobada";
   return <details className="min-w-0 border-2 border-ink bg-white p-4 shadow-[4px_4px_0_0_#221E21] open:bg-cronopios-paper">
-    <summary className="cursor-pointer list-none"><span className="block text-xs font-black uppercase tracking-widest text-cronopios-magenta">{label}</span><span className="mt-2 block font-display text-xl font-black">{item.subject.name}</span><span className="mt-2 block text-xs text-ink/55">Tocá para ver el detalle</span></summary>
+    <summary className="cursor-pointer list-none"><span className="status-badge">{label}</span><span className="mt-2 block font-display text-xl font-black">{item.subject.name}</span><span className="mt-2 block text-xs text-ink/55">Tocá para ver el detalle</span></summary>
     <div className="mt-4 border-t border-ink/20 pt-4 text-sm">
       {item.status === "available" && <p>Ya cumpliste todas las correlatividades registradas para cursarla.</p>}
       {item.status === "unknown" && <p>{item.reason}</p>}
       {item.requirements.length > 0 && <><p className="font-bold">Requisitos registrados</p><ul className="mt-2 space-y-1">{item.requirements.map(requirement => <li key={`${requirement.subjectId}-${requirement.kind}`}>{requirement.satisfied ? "✓" : "○"} {requirement.name} · {requirement.kind === "passed" ? "aprobada" : "regular o aprobada"}</li>)}</ul></>}
       {item.status === "blocked" && <p className="mt-3 font-bold">Todavía necesitás {item.missingRequirements.map(requirement => requirement.name).join(", ")}.</p>}
       {item.requiredBy.length > 0 && <p className="mt-4 text-ink/65">Es requisito para: {item.requiredBy.join(", ")}.</p>}
-      {item.status === "available" && <div className="mt-4 flex flex-wrap gap-3"><Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(item.subject.id))}`} className="inline-flex min-h-11 items-center border-2 border-ink bg-cronopios-green px-4 font-bold">Agregar a Mi agenda</Link><Link href={`/catedras?q=${encodeURIComponent(item.subject.name)}`} className="inline-flex min-h-11 items-center px-2 font-bold underline">Ver cátedra</Link></div>}
+      {item.status === "available" && <div className="mt-4 flex flex-wrap gap-3"><Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(item.subject.id))}`} className="button-primary">Agregar a Mi agenda</Link><Link href={`/catedras?q=${encodeURIComponent(item.subject.name)}`} className="button-secondary">Ver cátedra</Link></div>}
     </div>
   </details>;
 }

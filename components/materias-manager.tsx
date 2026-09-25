@@ -408,10 +408,10 @@ export function MateriasManager() {
         <input className="hidden" type="file" accept=".pdf,.csv,.txt,text/plain,text/csv,application/pdf" onChange={event => { setFile(event.target.files?.[0] || null); setMessage(""); setError(""); }} />
       </label>
       <div className="flex flex-wrap gap-3">
-        <button disabled={!file || loading} onClick={() => void processFile()} className="button-primary mt-4 disabled:cursor-not-allowed disabled:opacity-40">
+        <button disabled={!file || loading} onClick={() => void processFile()} className="button-secondary mt-4">
           {loading ? <><Loader2 className="mr-2 inline animate-spin" size={16} /> Procesando...</> : "Procesar analítico"}
         </button>
-        {hasImport && rows.length > 0 && <button disabled={saving} onClick={() => void saveRows()} className="mt-4 rounded-xl border-2 border-ink bg-lime px-5 py-3 font-semibold shadow-[3px_3px_0_0_#000] disabled:opacity-50">{saving ? "Guardando..." : "Guardar materias"}</button>}
+        {hasImport && rows.length > 0 && <button disabled={saving} onClick={() => void saveRows()} className="button-primary mt-4">{saving ? "Guardando..." : "Guardar materias"}</button>}
       </div>
       {message && <p className="mt-3 text-sm font-medium text-green-700">{message}</p>}
       {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
@@ -424,10 +424,10 @@ export function MateriasManager() {
           <h2 className="font-display text-xl font-bold">Marcá tu recorrido</h2>
           <p className="mt-2 text-sm text-ink/60">Tildá una materia para registrarla. El resaltado flúo indica tu selección.</p>
         </div>
-        {hasImport && rows.length > 0 && <button disabled={saving} onClick={() => void saveRows()} className="rounded-xl border-2 border-ink bg-lime px-5 py-3 font-semibold shadow-[3px_3px_0_0_#000] disabled:opacity-50">{saving ? "Guardando..." : "Guardar materias"}</button>}
+        {hasImport && rows.length > 0 && <button disabled={saving} onClick={() => void saveRows()} className="button-primary">{saving ? "Guardando..." : "Guardar materias"}</button>}
       </div>
       <div className="mt-5 flex flex-wrap gap-2" aria-label="Filtrar materias por disponibilidad">
-        {([ ["all", "Todas"], ["available", "Disponibles"], ["in_progress", "Regularizadas"], ["completed", "Aprobadas"], ["blocked", "Bloqueadas"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={eligibilityFilter === value} onClick={() => setEligibilityFilter(value)} className={`min-h-11 border-2 border-ink px-3 text-sm font-bold ${eligibilityFilter === value ? "bg-cronopios-magenta text-white" : "bg-white"}`}>{label}</button>)}
+        {([ ["all", "Todas"], ["available", "Disponibles"], ["in_progress", "Regularizadas"], ["completed", "Aprobadas"], ["blocked", "Bloqueadas"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={eligibilityFilter === value} onClick={() => setEligibilityFilter(value)} className="filter-chip">{label}</button>)}
       </div>
       <p className="mt-2 text-xs text-ink/60">Los indicadores usan las materias guardadas. <a href="/dashboard/disponibles" className="font-bold underline">Ver requisitos en detalle</a>.</p>
       <div className="mt-6 space-y-7">
@@ -479,7 +479,7 @@ export function MateriasManager() {
         })}
       </div>
       {hasImport && rows.length > 0 && <div className="mt-7 border-t-2 border-ink/15 pt-5">
-        <button type="button" disabled={saving} onClick={() => void saveRows()} className="min-h-11 rounded-xl border-2 border-ink bg-lime px-5 py-3 font-semibold shadow-[3px_3px_0_0_#000] disabled:opacity-50">{saving ? "Guardando..." : "Guardar materias"}</button>
+        <button type="button" disabled={saving} onClick={() => void saveRows()} className="button-primary">{saving ? "Guardando..." : "Guardar materias"}</button>
         {message && <p className="mt-3 text-sm font-medium text-green-700">{message}</p>}
         {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
       </div>}
