@@ -478,6 +478,11 @@ export function MateriasManager() {
           </section>;
         })}
       </div>
+      {hasImport && rows.length > 0 && <div className="mt-7 border-t-2 border-ink/15 pt-5">
+        <button type="button" disabled={saving} onClick={() => void saveRows()} className="min-h-11 rounded-xl border-2 border-ink bg-lime px-5 py-3 font-semibold shadow-[3px_3px_0_0_#000] disabled:opacity-50">{saving ? "Guardando..." : "Guardar materias"}</button>
+        {message && <p className="mt-3 text-sm font-medium text-green-700">{message}</p>}
+        {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
+      </div>}
     </div>
   </div>;
 }
