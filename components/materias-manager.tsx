@@ -10,7 +10,8 @@ import { subjectsForDegree, requirements2006, plan2006Source } from "@/lib/acade
 import { detectDegree, degreeOptions, type DegreeValue } from "@/lib/academic/curriculum";
 import { getCourseEligibility } from "@/lib/academic/course-eligibility";
 import { parseAnalitico } from "@/lib/analitico";
-import { normalizeSubjectName, type ParsedAnalyticSubject } from "@/lib/academic/analytic-parser";
+import { type ParsedAnalytic, type ParsedAnalyticSubject } from "@/lib/academic/analytic-parser";
+import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
 
 type Subject = {
   id: string | number;
@@ -58,6 +59,9 @@ export function MateriasManager() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hasImport, setHasImport] = useState(false);
+  const [importMatches, setImportMatches] = useState<MatchedAnalyticSubject[]>([]);
+  const [importPlanConfirmed, setImportPlanConfirmed] = useState(false);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const profileLoaded = useRef(false);
   const [changingDegree, setChangingDegree] = useState(false);
   const [degree, setDegree] = useState<DegreeValue>("licenciatura");
@@ -135,6 +139,8 @@ export function MateriasManager() {
       setCorrelatives([]);
       setCatalog([]);
       setHasImport(false);
+      setImportMatches([]);
+      setImportWarnings([]);
       setDegree(value);
       setMessage("Carrera actualizada. Tus materias guardadas se conservan.");
     } catch (caught) {
@@ -154,6 +160,8 @@ export function MateriasManager() {
     setHistory([]);
     setCorrelatives([]);
     setHasImport(false);
+    setImportMatches([]);
+    setImportWarnings([]);
     setMessage("");
     setError("");
   }
@@ -235,6 +243,9 @@ export function MateriasManager() {
     setLoading(true);
     setError("");
     setMessage("");
+    setImportMatches([]);
+    setImportWarnings([]);
+    setImportPlanConfirmed(false);
     try {
       if (!catalog.length) {
         setError("El plan de estudios está vacío en Supabase. Ejecutá supabase/seed-subjects.sql en el SQL Editor y recargá la página.");
@@ -243,54 +254,64 @@ export function MateriasManager() {
       const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
       let content = "";
       let pdfSubjects: ParsedAnalyticSubject[] = [];
+      let parsedPdf: ParsedAnalytic | null = null;
       let pdfTextPresent = true;
       if (isPdf) {
         const formData = new FormData();
         formData.append("file", file);
         const response = await fetch("/api/parse-analitico", { method: "POST", body: formData });
         const responseText = await response.text();
-        let result: { error?: string; subjects?: ParsedAnalyticSubject[]; textPresent?: boolean };
+        let result: Partial<ParsedAnalytic> & { error?: string; textPresent?: boolean };
         try {
-          result = JSON.parse(responseText) as { text?: string; error?: string };
+          result = JSON.parse(responseText) as Partial<ParsedAnalytic> & { error?: string; textPresent?: boolean };
         } catch {
           throw new Error(`El servidor devolvió una respuesta no válida (HTTP ${response.status}). Reiniciá la aplicación e intentá nuevamente.`);
         }
         if (!response.ok) throw new Error(result.error || "No se pudo extraer el texto del PDF.");
         pdfSubjects = result.subjects ?? [];
         pdfTextPresent = result.textPresent ?? false;
+        parsedPdf = result as ParsedAnalytic;
       } else if (file.type.startsWith("text/") || /\.(csv|txt)$/i.test(file.name)) {
         content = await file.text();
       }
       const parsed = parseAnalitico(content, catalog);
+      if (!isPdf && !parsed.grades.size) { setError("No reconocimos filas completas de materias y notas en este archivo. Probá con el PDF original o cargá las materias a mano."); return; }
       if (isPdf && !pdfTextPresent) {
         setError("El PDF no contiene texto seleccionable. Este archivo parece escaneado y necesita OCR.");
         return;
       }
+      if (isPdf && !pdfSubjects.length) { setError("No encontramos materias en este PDF. Probá con el analítico original o cargalas a mano."); return; }
+      if (parsedPdf?.detectedCurriculum && parsedPdf.detectedCurriculum !== curriculum || parsedPdf?.detectedDegree && parsedPdf.detectedDegree !== degree) {
+        setError("El analítico indica otra carrera o plan. Revisá tu selección antes de importarlo.");
+        return;
+      }
+      const { data: aliases } = isPdf ? await supabase.from("subject_aliases").select("subject_id,alias,verified").eq("curriculum", curriculum).eq("verified", true) : { data: [] };
+      const matches = isPdf ? matchAnalyticSubjects(pdfSubjects, catalog.map(subject => ({ id: subject.id, nombre: subject.nombre })), aliases ?? []) : [];
+      if (isPdf) {
+        setImportMatches(matches);
+        setImportPlanConfirmed(Boolean(parsedPdf?.detectedCurriculum && parsedPdf?.detectedDegree));
+        setImportWarnings([...(parsedPdf?.warnings ?? []), ...(parsedPdf?.reportedApprovedCount !== undefined && parsedPdf.reportedApprovedCount !== matches.length ? [`El analítico informa ${parsedPdf.reportedApprovedCount} aprobadas, pero detectamos ${matches.length} filas. Revisá el PDF antes de guardar.`] : [])]);
+      } else { setImportMatches([]); setImportPlanConfirmed(true); setImportWarnings([]); }
       const detectedRows = catalog.map(subject => {
         const current = rows.find(row => String(row.id) === String(subject.id));
         const saved = history.find(item => String(item.subject_id) === String(subject.id));
-        const normalized = content.toLocaleLowerCase();
         const parsedGrade = parsed.grades.get(String(subject.id));
-        const pdfMatch = pdfSubjects.find(item => normalizeSubjectName(item.rawName) === normalizeSubjectName(subject.nombre));
-        const found = Boolean(parsedGrade) || Boolean(pdfMatch) || normalized.includes(subject.nombre.toLocaleLowerCase());
-        const line = content.split(/\r?\n/).find(item => item.toLocaleLowerCase().includes(subject.nombre.toLocaleLowerCase()));
-        const gradeMatch = line?.match(/(?:nota|calificaci[oó]n)?\s*[:;,\-]?\s*([1-9](?:[.,]\d)?|10)(?:\s|$)/i);
+        const pdfMatch = matches.find(item => String(item.subjectId) === String(subject.id));
+        const found = Boolean(parsedGrade) || Boolean(pdfMatch);
         return {
           ...toRow(subject, found || !content),
-          estado: found && (parsedGrade?.grade || pdfMatch?.grade || /aprob|promoc|final/i.test(line ?? ""))
-            ? "aprobada"
+          estado: pdfMatch ? pdfMatch.status === "regular" ? "regular" : pdfMatch.status === "pending" ? "pendiente" : "aprobada"
+            : parsedGrade?.grade && Number(parsedGrade.grade) >= 4 ? "aprobada"
             : current?.estado
               ?? (saved?.status === "passed" ? "aprobada" : saved?.status === "regular" ? "regular" : "pendiente"),
-          nota: String(parsedGrade?.grade ?? pdfMatch?.grade ?? gradeMatch?.[1]?.replace(",", ".") ?? current?.nota ?? saved?.grade ?? ""),
+          nota: String(parsedGrade?.grade ?? pdfMatch?.grade ?? current?.nota ?? saved?.grade ?? ""),
           fecha_aprobacion: parsedGrade?.date ?? pdfMatch?.passedAt ?? current?.fecha_aprobacion ?? saved?.passed_at ?? "",
           detected: isPdf ? found : found || !content
         } as SubjectRow;
       });
       setRows(detectedRows);
       setHasImport(true);
-      setMessage(content
-        ? "Analítico leído. Revisá las materias detectadas y guardá los cambios."
-        : "Archivo recibido. Se generó una pre-carga con las materias del plan para que confirmes tus aprobadas.");
+      setMessage(isPdf ? `Analítico leído: ${pdfSubjects.length} materias, ${matches.filter(item => item.subjectId).length} reconocidas y ${matches.filter(item => !item.reviewed).length} para revisar.` : "Archivo leído. Revisá las materias detectadas antes de guardar.");
     } catch (caughtError) {
       const detail = caughtError instanceof Error ? caughtError.message : "Error desconocido.";
       setError(`No se pudo leer el archivo: ${detail}`);
@@ -299,7 +320,24 @@ export function MateriasManager() {
     }
   }
 
+  function resolveImportMatch(index: number, value: string) {
+    const item = importMatches[index];
+    if (!item) return;
+    const chosen = value && value !== "__ignore" ? catalog.find(subject => String(subject.id) === value) : undefined;
+    setImportMatches(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, subjectId: chosen?.id, ignored: value === "__ignore", reviewed: Boolean(value) } : row));
+    if (chosen) setRows(current => current.map(row => String(row.id) === String(chosen.id) ? {
+      ...row, detected: true, estado: item.status === "regular" ? "regular" : item.status === "pending" ? "pendiente" : "aprobada",
+      nota: item.grade == null ? row.nota : String(item.grade), fecha_aprobacion: item.passedAt ?? row.fecha_aprobacion
+    } : row));
+    setError("");
+  }
+
   async function saveRows() {
+    if (importMatches.length && (!importPlanConfirmed || importMatches.some(item => !item.reviewed))) {
+      setError("Confirmá carrera y plan y resolvé todas las materias del PDF antes de guardar."); return;
+    }
+    const selectedIds = importMatches.filter(item => item.subjectId).map(item => String(item.subjectId));
+    if (new Set(selectedIds).size !== selectedIds.length) { setError("Hay materias duplicadas en la revisión. Resolvelas antes de guardar."); return; }
     setSaving(true);
     setError("");
     setMessage("");
@@ -309,7 +347,7 @@ export function MateriasManager() {
       setSaving(false);
       return;
     }
-    const rowsToSave = rows.map(row => ({ ...row, nota: String(row.nota ?? "") }));
+    const rowsToSave = rows.filter(row => !importMatches.length || selectedIds.includes(String(row.id))).map(row => ({ ...row, nota: String(row.nota ?? "") }));
     const invalidGrade = rowsToSave.find(row => {
       if (!row.nota.trim()) return false;
       const grade = Number(row.nota.replace(",", "."));
@@ -330,7 +368,7 @@ export function MateriasManager() {
       subjectId: row.id,
       status: (row.estado === "aprobada" ? "passed" : row.estado === "regular" ? "regular" : "pending") as SubjectStatus,
       grade: row.nota.trim() ? Number(row.nota.replace(",", ".")) : undefined,
-      passedAt: undefined
+      passedAt: row.fecha_aprobacion || undefined
     }));
     if (!payload.length) {
       setError("No hay materias para guardar. Procesá un archivo o agregá una materia manualmente.");
@@ -355,6 +393,8 @@ export function MateriasManager() {
       setHistory((refreshedHistory ?? []) as SavedHistory[]);
       setMessage(`${payload.length} materia(s) guardada(s) correctamente.`);
       setHasImport(false);
+      setImportMatches([]);
+      setImportWarnings([]);
     } catch (caughtError) {
       const detail = caughtError instanceof Error ? caughtError.message : "Error desconocido.";
       setError(`No se pudieron guardar las materias: ${detail}`);
@@ -416,6 +456,19 @@ export function MateriasManager() {
       {message && <p className="mt-3 text-sm font-medium text-green-700">{message}</p>}
       {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
     </div>
+
+    {importMatches.length > 0 && <section className="card" aria-labelledby="analytic-review-title">
+      <h2 id="analytic-review-title" className="font-display text-xl font-bold">Revisá las materias del analítico</h2>
+      <p className="mt-2 text-sm">{importMatches.length} detectadas · {importMatches.filter(item => item.subjectId).length} reconocidas · {importMatches.filter(item => !item.reviewed).length} necesitan revisión</p>
+      {importWarnings.map(warning => <p key={warning} className="mt-2 border-l-4 border-amber-500 bg-amber-50 p-2 text-sm">{warning}</p>)}
+      <label className="mt-4 flex items-start gap-2 text-sm font-bold"><input type="checkbox" checked={importPlanConfirmed} onChange={event => setImportPlanConfirmed(event.target.checked)} /> Confirmé que este analítico corresponde a la carrera y plan elegidos arriba.</label>
+      <div className="mt-4 space-y-3">{importMatches.map((item, index) => <div key={`${item.rawName}-${index}`} className="border-l-4 border-ink/30 bg-cronopios-paper p-3">
+        <p className="font-bold">{item.rawName} <span className="status-badge ml-2">{item.kind}</span></p>
+        {item.candidateId && <p className="mt-1 text-xs">Sugerencia: {catalog.find(subject => String(subject.id) === String(item.candidateId))?.nombre}. Confirmala solo si coincide.</p>}
+        <label className="mt-2 block text-sm font-bold">Materia del plan<select className="input mt-1" value={item.ignored ? "__ignore" : item.subjectId ?? ""} onChange={event => resolveImportMatch(index, event.target.value)}><option value="">Elegir materia</option><option value="__ignore">Ignorar esta fila</option>{catalog.map(subject => <option key={subject.id} value={subject.id}>{subject.nombre}</option>)}</select></label>
+      </div>)}</div>
+      <p className="mt-3 text-xs text-ink/65">Las sugerencias probables o ambiguas no se guardan hasta que las elijas. El PDF no se almacena.</p>
+    </section>}
 
     <div className="card">
       <div className="flex flex-wrap items-end justify-between gap-3">

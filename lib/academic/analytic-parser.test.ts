@@ -32,4 +32,26 @@ describe("parseAnalyticDocument", () => {
       { rawName: "Taller de Diseño Multimedial I", grade: 8, passedAt: "2022-02-08", status: "passed" }
     ]);
   });
+
+  it("une una materia larga en varias líneas sin incluir encabezados ni datos personales", () => {
+    const fixture = [
+      "Apellido y nombre: OMITIDO", "DNI: OMITIDO", "Asignaturas aprobadas",
+      "Identidad, Estado y Sociedad en Latinoamérica y", "Argentina | 8 | 17/12/2022",
+      "Página 1 de 2", "Asignatura Nota Fecha", "Tecnología\u00a0Multimedial",
+      "III | 9 | 15/12/2023", "Total de asignaturas aprobadas: 2",
+    ].join("\n");
+    const first = parseAnalyticDocument(fixture);
+    const second = parseAnalyticDocument(fixture);
+    expect(first.subjects).toEqual([
+      { rawName: "Identidad, Estado y Sociedad en Latinoamérica y Argentina", grade: 8, passedAt: "2022-12-17", status: "passed" },
+      { rawName: "Tecnología Multimedial III", grade: 9, passedAt: "2023-12-15", status: "passed" },
+    ]);
+    expect(second.subjects).toEqual(first.subjects);
+    expect(JSON.stringify(first)).not.toMatch(/OMITIDO/);
+  });
+
+  it("no descarta una materia real cuyo nombre empieza con Materia", () => {
+    const result = parseAnalyticDocument("Asignaturas aprobadas\nMateria de prueba no existente 9 (Nueve) 17/12/2021 29949\nTotal de asignaturas aprobadas: 1");
+    expect(result.subjects).toEqual([{ rawName: "Materia de prueba no existente", grade: 9, passedAt: "2021-12-17", status: "passed" }]);
+  });
 });

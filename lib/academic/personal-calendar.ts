@@ -1,5 +1,4 @@
 import { timeMinutes, weekDays } from "./weekly-schedule";
-import type { WeekSchedule } from "./weekly-schedule";
 import type { CustomWeekSlot } from "./custom-week";
 import { localDateKey } from "./dashboard-summary";
 
@@ -46,7 +45,7 @@ export function datePlusDays(date: string, days: number) {
 }
 export function weekdayForDate(date: string) { return weekDays[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7] ?? null; }
 
-export type AgendaItem = { key: string; kind: "course" | "personal" | "fda"; title: string; date: string; start_time: string | null; end_time: string | null; location?: string | null; category?: string; id?: string | number; source?: "official" | "manual" };
+export type AgendaItem = { key: string; kind: "course" | "personal" | "fda"; title: string; date: string; start_time: string | null; end_time: string | null; location?: string | null; notes?: string | null; category?: string; id?: string | number };
 export function sortAgendaItems(items: AgendaItem[]) {
   return [...items].sort((a, b) => a.date.localeCompare(b.date) || (a.start_time === null ? -1 : b.start_time === null ? 1 : (timeMinutes(a.start_time) ?? 0) - (timeMinutes(b.start_time) ?? 0)) || a.title.localeCompare(b.title));
 }
@@ -57,11 +56,10 @@ export function hasAgendaConflict(a: AgendaItem, b: AgendaItem) {
 }
 
 export type PublishedCalendarEvent = { id: number; title: string; registration_start: string | null; registration_end: string | null; starts_at: string | null; ends_at: string | null };
-export function agendaItemsForDate(date: string, sources: { official: WeekSchedule[]; manual: CustomWeekSlot[]; personal: PersonalEvent[]; fda: PublishedCalendarEvent[]; period: { academicYear: number; semester: number }; curriculum: string }) {
+export function agendaItemsForDate(date: string, sources: { manual: CustomWeekSlot[]; personal: PersonalEvent[]; fda: PublishedCalendarEvent[]; period: { academicYear: number; semester: number } }) {
   const weekday = weekdayForDate(date);
-  const { official, manual, personal, fda, period, curriculum } = sources;
-  const courses: AgendaItem[] = [...official.filter(row => row.weekday === weekday && row.academic_year === period.academicYear && row.curriculum === curriculum && (row.semester == null || row.semester === period.semester)).map(row => ({ key: `official-${row.id}-${date}`, kind: "course" as const, title: row.raw_subject_name, date, start_time: row.start_time, end_time: row.end_time, location: [row.classroom, row.campus].filter(Boolean).join(" · "), id: row.id, source: "official" as const })),
-    ...manual.filter(row => row.weekday === weekday && row.academic_year === period.academicYear && row.semester === period.semester).map(row => ({ key: `manual-${row.id}-${date}`, kind: "course" as const, title: row.subject_name, date, start_time: row.start_time, end_time: row.end_time, location: [row.classroom, row.location].filter(Boolean).join(" · "), id: row.id, source: "manual" as const }))];
+  const { manual, personal, fda, period } = sources;
+  const courses: AgendaItem[] = manual.filter(row => row.weekday === weekday && row.academic_year === period.academicYear && (row.semester == null || row.semester === period.semester)).map(row => ({ key: `manual-${row.id}-${date}`, kind: "course", title: row.subject_name, date, start_time: row.start_time, end_time: row.end_time, location: [row.classroom, row.location].filter(Boolean).join(" · "), notes: row.notes, id: row.id }));
   const events: AgendaItem[] = personal.filter(row => occursOn(row, date)).map(row => ({ key: `personal-${row.id}-${date}`, kind: "personal", title: row.title, date, start_time: row.start_time, end_time: row.end_time, location: row.location, category: row.category, id: row.id }));
   const institutional: AgendaItem[] = fda.filter(row => [row.registration_start, row.registration_end, row.starts_at, row.ends_at].includes(date)).map(row => ({ key: `fda-${row.id}-${date}`, kind: "fda", title: row.title, date, start_time: null, end_time: null, id: row.id }));
   return sortAgendaItems([...courses, ...events, ...institutional]);

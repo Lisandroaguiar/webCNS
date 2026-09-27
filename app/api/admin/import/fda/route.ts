@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!user || !isAdmin(user.email)) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const body = await request.json().catch(() => ({})) as { sourceKey?: string };
   const sourceKey = body.sourceKey;
-  if (!sourceKey || !sourceRegistry[sourceKey]) return NextResponse.json({ error: "Fuente no permitida." }, { status: 400 });
+  if (!sourceKey || sourceRegistry[sourceKey]?.sourceType !== "academic_calendar") return NextResponse.json({ error: "Solo se permiten imports del calendario académico." }, { status: 400 });
   let admin: ReturnType<typeof createAdminClient> | null = null;
   let runId: number | null = null;
   try {
@@ -36,43 +36,9 @@ export async function POST(request: Request) {
     if (runError || !run) throw new Error(runError?.message ?? "No se pudo crear la ejecución.");
     runId = run.id;
     const result = await runSourceImport(sourceKey);
-    const { data: subjects } = await admin.from("subjects").select("id, name, curriculum");
-    const normalized = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     const now = new Date().toISOString();
     const errors: string[] = [];
     let recordsChanged = 0;
-    for (const item of result.schedules) {
-      const subject = subjects?.find(candidate => normalized(candidate.name) === normalized(item.rawSubjectName) && (!item.curriculum || candidate.curriculum === item.curriculum));
-      const scheduleRow = {
-        source_id: source.id,
-        external_key: item.externalKey,
-        subject_id: subject?.id == null ? null : String(subject.id),
-        raw_subject_name: item.rawSubjectName,
-        curriculum: item.curriculum ?? null,
-        academic_year: item.academicYear,
-        semester: item.semester ?? null,
-        course_year: item.courseYear ?? null,
-        commission: item.commission ?? null,
-        weekday: item.weekday,
-        start_time: item.startTime,
-        end_time: item.endTime ?? null,
-        campus: item.campus ?? null,
-        classroom: item.classroom ?? null,
-        notes: item.notes ?? null,
-        source_url: item.sourceUrl,
-        source_label: item.sourceLabel,
-        last_seen_at: now,
-        updated_at: now
-      };
-      const { data: existing } = await admin.from("course_schedules").select("id,status,raw_subject_name,curriculum,semester,weekday,start_time,end_time,commission,classroom,campus,notes,subject_id").eq("source_id", source.id).eq("external_key", item.externalKey).maybeSingle();
-      const status = existing?.status === "published" || existing?.status === "verified" ? existing.status : "draft";
-      const { data: override } = existing ? await admin.from("admin_schedule_overrides").select("changes").eq("course_schedule_id", existing.id).maybeSingle() : { data: null };
-      const next = { ...scheduleRow, ...(override?.changes ?? {}), status };
-      const changed = importFieldsChanged(existing, next, ["raw_subject_name", "curriculum", "semester", "weekday", "start_time", "end_time", "commission", "classroom", "campus", "notes", "subject_id", "status"]);
-      const { error } = await admin.from("course_schedules").upsert(next, { onConflict: "source_id,external_key" });
-      if (error) errors.push(`Horario ${item.rawSubjectName}: ${error.message}`);
-      else if (changed) recordsChanged += 1;
-    }
     for (const item of result.events) {
       const eventRow = {
         source_id: source.id,
@@ -104,7 +70,7 @@ export async function POST(request: Request) {
         if (existing?.id && status === "published") await recalculatePendingRemindersForEvent(existing.id);
       }
     }
-    const recordsFound = result.schedules.length + result.events.length;
+    const recordsFound = result.events.length;
     const emptyResultWarnings = recordsFound === 0 ? ["La fuente no produjo registros. Se conservaron los datos existentes y no se marcaron como obsoletos."] : [];
     const warnings = [...result.warnings, ...emptyResultWarnings, ...errors];
     const status = recordsFound === 0 || warnings.length ? "warning" : "success";

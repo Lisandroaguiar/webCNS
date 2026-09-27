@@ -51,6 +51,12 @@ describe("Sprint 3 acceptance audit",()=>{
  });
  it("admin client has a server-only boundary",()=>{expect(readFileSync("lib/supabase/admin.ts","utf8")).toMatch(/import\s+["']server-only["']/);});
  it("normal authenticated users cannot invoke imports",async()=>{state.email="normal@example.test";expect((await POST(request())).status).toBe(403);expect(state.tables.import_runs).toHaveLength(0);});
+ it("no permite volver a importar horarios institucionales",async()=>{
+  const response=await POST(new Request("http://localhost/api/admin/import/fda",{method:"POST",body:JSON.stringify({sourceKey:"multimedia-schedules-old"})}));
+  expect(response.status).toBe(400);
+  expect(state.tables.import_runs).toHaveLength(0);
+  expect(state.tables.course_schedules).toHaveLength(0);
+ });
  it("valid import followed by zero rows preserves published data and emits a warning",async()=>{
  state.result={events:parseAcademicCalendarText("Mesa noviembre: inscripción del 2 al 8 de noviembre",options).events,schedules:[],warnings:[],checksum:"valid"};
  expect((await POST(request())).status).toBe(200);state.tables.academic_events[0].status="published";

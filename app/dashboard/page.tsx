@@ -7,7 +7,7 @@ import { subjectsForDegree } from "@/lib/academic/degree-catalog";
 import { detectDegree } from "@/lib/academic/curriculum";
 import { getCourseEligibility, type EligibilitySubject } from "@/lib/academic/course-eligibility";
 import { measureServerStep } from "@/lib/observability/performance";
-import { currentAcademicPeriod, type WeekSchedule } from "@/lib/academic/weekly-schedule";
+import { currentAcademicPeriod } from "@/lib/academic/weekly-schedule";
 import { localDateKey, nextRelevantEvent, progressSummary } from "@/lib/academic/dashboard-summary";
 import { agendaItemsForDate, datePlusDays, sortAgendaItems, type PersonalEvent } from "@/lib/academic/personal-calendar";
 import type { CustomWeekSlot } from "@/lib/academic/custom-week";
@@ -24,13 +24,12 @@ export default async function DashboardPage() {
   const eventsPromise = measureServerStep("academic_events", getPublishedAcademicEvents);
   const postsPromise = measureServerStep("community_posts", getPublishedCommunityPosts);
   const user = await userPromise;
-  const [profileResult, subjectsResult, savedResult, publicEvents, selectionResult, customResult, personalResult, posts] = await Promise.all([
+  const [profileResult, subjectsResult, savedResult, publicEvents, customResult, personalResult, posts] = await Promise.all([
     measureServerStep("profile", () => supabase.from("profiles").select("full_name,curriculum").eq("id", user?.id).maybeSingle()),
     subjectsPromise,
     measureServerStep("user_subjects", () => supabase.from("user_subjects").select("status,grade,subject_id").eq("user_id", user?.id)),
     eventsPromise,
-    supabase.from("user_schedule_selections").select("course_schedule:course_schedules(id,subject_id,raw_subject_name,weekday,start_time,end_time,commission,classroom,campus,academic_year,semester,curriculum,status)").eq("user_id", user?.id),
-    supabase.from("user_custom_schedule_slots").select("id,subject_id,subject_name,weekday,start_time,end_time,classroom,location,commission,source_schedule_id,academic_year,semester").eq("user_id", user?.id),
+    supabase.from("user_course_entries").select("id,subject_id,subject_name,weekday,start_time,end_time,classroom,location,commission,notes,academic_year,semester").eq("user_id", user?.id),
     supabase.from("user_calendar_events").select("id,title,event_date,start_time,end_time,location,notes,category,recurrence_type").eq("user_id", user?.id).or(`event_date.gte.${localDateKey(new Date())},recurrence_type.eq.weekly`).limit(500),
     postsPromise,
   ]);
@@ -46,12 +45,11 @@ export default async function DashboardPage() {
   const { approved, percent: progress, average } = progressSummary(rows, curriculumSubjects.length);
   const available = getCourseEligibility({ subjects: allSubjects as EligibilitySubject[], userSubjects: savedSubjects.map(item => ({ subject_id: item.subject_id, status: item.status })), curriculum, degree }).filter(item => item.status === "available");
   const period = currentAcademicPeriod();
-  const official = (selectionResult.data ?? []).flatMap(item => { const raw = item.course_schedule; return raw ? [Array.isArray(raw) ? raw[0] : raw] : []; }) as WeekSchedule[];
   const manual = (customResult.data ?? []) as CustomWeekSlot[];
   const personal = (personalResult.data ?? []) as PersonalEvent[];
   const today = localDateKey(new Date());
   const nextEvent = nextRelevantEvent(publicEvents, today);
-  const upcoming = sortAgendaItems(Array.from({ length: 7 }, (_, index) => agendaItemsForDate(datePlusDays(today, index), { official, manual, personal, fda: publicEvents, period, curriculum })).flat());
+  const upcoming = sortAgendaItems(Array.from({ length: 7 }, (_, index) => agendaItemsForDate(datePlusDays(today, index), { manual, personal, fda: publicEvents, period })).flat());
   if (nextEvent && !upcoming.some(item => item.kind === "fda" && item.id === nextEvent.event.id && item.date === nextEvent.date)) upcoming.push({ key: `fda-${nextEvent.event.id}-${nextEvent.date}`, kind: "fda", title: nextEvent.event.title, date: nextEvent.date, start_time: null, end_time: null, id: nextEvent.event.id });
   const nextItems = sortAgendaItems(upcoming).slice(0, 3);
   const highlights = posts.filter(post => !post.event_date || post.event_date.slice(0, 10) >= today).slice(0, 2);

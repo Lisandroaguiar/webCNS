@@ -22,7 +22,6 @@ export function AuthenticatedShell({ user, children }: { user: User | null; chil
         <NavItem href="/cartelera" icon={<Megaphone size={18} />} label="Cartelera" />
         <div className="mt-4 border-t border-ink/15 pt-3"><p className="px-3 text-[10px] font-black uppercase tracking-widest text-ink/45">Explorar</p><NavItem href="/catedras" icon={<Search size={18} />} label="Cátedras" /><NavItem href="/agenda" icon={<CalendarRange size={18} />} label="Fechas FDA" /></div>
         {isAdmin && <NavItem href="/admin/cartelera" icon={<Upload size={18} />} label="Subir contenido" />}
-        {isAdmin && <NavItem href="/admin/horarios" icon={<CalendarRange size={18} />} label="Editar horarios" />}
       </nav>
       <div className="mt-auto border-t-2 border-cronopios-ink/15 pt-5">
         <Link href="/dashboard/perfil" className="flex min-h-11 items-center gap-2 text-sm font-bold hover:text-cronopios-magenta"><Settings size={16} /> Perfil y configuración</Link>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, FileUp, Loader2, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
-import { saveUserSubject, type SubjectStatus } from "@/lib/supabase/mvp-queries";
+import { saveUserSubjects, type SubjectStatus } from "@/lib/supabase/mvp-queries";
 import { curriculumOptions, degreeOptions, type CurriculumValue, type DegreeValue } from "@/lib/academic/curriculum";
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
 import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
@@ -26,6 +26,7 @@ export function OnboardingShell() {
   const [catalog, setCatalog] = useState<Subject[]>([]);
   const [parsed, setParsed] = useState<ParsedAnalytic | null>(null);
   const [matches, setMatches] = useState<MatchedAnalyticSubject[]>([]);
+  const [contextConfirmed, setContextConfirmed] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,6 +51,25 @@ export function OnboardingShell() {
     if (!subjects.length) throw new Error("Este plan todavía no tiene materias cargadas.");
     setCatalog(subjects);
     return subjects;
+  }
+
+  async function reviewMatches(result: ParsedAnalytic, selectedCurriculum: CurriculumValue, selectedDegree: DegreeValue) {
+    const selectedCatalog = await loadCatalog(selectedCurriculum, selectedDegree);
+    const { data: aliases } = await supabase.from("subject_aliases").select("subject_id,alias,verified").eq("curriculum", selectedCurriculum).eq("verified", true);
+    const nextMatches = matchAnalyticSubjects(result.subjects, selectedCatalog.map(subject => ({ id: subject.id, nombre: subject.name })), aliases ?? []);
+    setMatches(nextMatches);
+    setParsed(result);
+  }
+
+  async function changeReviewContext(selectedCurriculum: CurriculumValue, selectedDegree: DegreeValue) {
+    if (!parsed) return;
+    setContextConfirmed(false);
+    setCurriculum(selectedCurriculum);
+    setDegree(selectedDegree);
+    setLoading(true);
+    try { await reviewMatches(parsed, selectedCurriculum, selectedDegree); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos cargar ese plan."); }
+    finally { setLoading(false); }
   }
 
   async function startManual() {
@@ -87,10 +107,8 @@ export function OnboardingShell() {
       const detectedCurriculum = result.detectedCurriculum;
       if (detectedDegree) setDegree(detectedDegree);
       if (detectedCurriculum) setCurriculum(detectedCurriculum);
-      const selectedCatalog = await loadCatalog(detectedCurriculum ?? curriculum, detectedDegree ?? degree);
-      const nextMatches = matchAnalyticSubjects(result.subjects, selectedCatalog.map(subject => ({ id: subject.id, nombre: subject.name })));
-      setParsed({ ...result, detectedDegree, detectedCurriculum, warnings: [...result.warnings, ...(nextMatches.some(item => !item.subjectId) ? ["Hay materias sin coincidencia en esta carrera y plan. Revisalas: pueden pertenecer a otra carrera o tener otro nombre."] : [])] });
-      setMatches(nextMatches);
+      await reviewMatches(result, detectedCurriculum ?? curriculum, detectedDegree ?? degree);
+      setContextConfirmed(Boolean(detectedDegree && detectedCurriculum));
       setStep("review");
       if (!detectedDegree || !detectedCurriculum) setMessage("Revisá carrera y plan: no pudimos detectarlos con seguridad.");
       else setMessage("Analítico leído. Revisá las materias antes de guardar.");
@@ -100,22 +118,22 @@ export function OnboardingShell() {
   }
 
   function updateMatch(index: number, subjectId: string) {
-    setMatches(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, subjectId: subjectId || undefined, kind: subjectId ? "PROBABLE" : "UNMATCHED" } : item));
+    setMatches(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, subjectId: subjectId && subjectId !== "__ignore" ? subjectId : undefined, ignored: subjectId === "__ignore", reviewed: Boolean(subjectId) } : item));
   }
 
   async function saveAnalytic() {
     setSaving(true); setError("");
     try {
+      if (!contextConfirmed) throw new Error("Confirmá carrera y plan antes de guardar.");
+      if (matches.some(item => !item.reviewed)) throw new Error("Revisá cada materia sin coincidencia: elegí una materia o ignorá la fila.");
+      const selected = matches.filter(item => item.subjectId);
+      if (!selected.length) throw new Error("Elegí al menos una materia para guardar.");
+      if (new Set(selected.map(item => String(item.subjectId))).size !== selected.length) throw new Error("Una materia aparece más de una vez. Resolvé las filas duplicadas antes de guardar.");
       await saveProfile();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Tu sesión expiró. Volvé a iniciar sesión.");
-      const selected = matches.filter(item => item.subjectId);
-      if (!selected.length) throw new Error("Elegí al menos una materia para guardar.");
-      const results = await Promise.all(selected.map(item => saveUserSubject(
-        supabase, user.id, item.subjectId!, item.status ?? "passed" as SubjectStatus, item.grade, item.passedAt
-      )));
-      const failed = results.find(result => result.error);
-      if (failed?.error) throw new Error("No pudimos guardar todas las materias. Revisá tu conexión e intentá nuevamente.");
+      const { error: saveError } = await saveUserSubjects(supabase, user.id, selected.map(item => ({ subjectId: item.subjectId!, status: (item.status ?? "passed") as SubjectStatus, grade: item.grade, passedAt: item.passedAt })));
+      if (saveError) throw new Error("No pudimos guardar las materias. Revisá tu conexión e intentá nuevamente.");
       localStorage.setItem("cronopios-curriculum", curriculum);
       document.cookie = `cronopios-curriculum=${curriculum}; path=/; max-age=31536000; samesite=lax`;
       router.push("/dashboard");
@@ -149,9 +167,9 @@ export function OnboardingShell() {
     </div>}
     {step === "manual" && <div className="card mt-8"><CheckCircle2 className="text-cronopios-magenta" /><h2 className="mt-3 font-display text-2xl font-black">Tu plan está listo</h2><p className="mt-2 text-sm text-cronopios-ink/65">Podés empezar a marcar materias desde Recorrido. Después podés modificar todo.</p><Link href="/dashboard/recorrido" prefetch className="button-primary mt-5 inline-block">Ir a Recorrido</Link></div>}
     {step === "review" && parsed && <div className="mt-8">
-      <div className="border-2 border-cronopios-ink bg-white p-5 shadow-[4px_4px_0_0_#221E21]"><h2 className="font-display text-2xl font-black">Revisá tu analítico</h2><div className="mt-4 grid gap-3 text-sm sm:grid-cols-3"><p><strong>Carrera:</strong> {degreeOptions.find(option => option.value === degree)?.label ?? "No detectada"}</p><p><strong>Plan:</strong> {curriculumOptions.find(option => option.value === curriculum)?.label ?? "No detectado"}</p><p><strong>Reconocidas:</strong> {matches.filter(item => item.subjectId).length} de {matches.length}</p></div>{parsed.warnings.map(warning => <p key={warning} className="mt-4 flex gap-2 bg-yellow-100 p-3 text-sm"><TriangleAlert size={18} className="shrink-0" />{warning}</p>)}{parsed.reportedApprovedCount !== undefined && parsed.reportedApprovedCount !== matches.length && <p className="mt-4 bg-yellow-100 p-3 text-sm">El analítico indica {parsed.reportedApprovedCount} materias aprobadas, pero pudimos reconocer {matches.length}. Revisemos las que faltan.</p>}</div>
-      <div className="mt-4 space-y-3">{matches.map((item, index) => <div key={`${item.rawName}-${index}`} className="border-2 border-cronopios-ink bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold">{item.rawName}</p><p className="mt-1 text-xs uppercase tracking-widest text-cronopios-magenta">{item.kind} · {item.status === "regular" ? "Regularizada" : item.status === "pending" ? "Pendiente" : "Aprobada"}{item.grade !== undefined ? ` · Nota ${item.grade}` : " · Nota no detectada"}</p>{item.passedAt && <p className="mt-1 text-xs text-cronopios-ink/55">{item.passedAt}</p>}</div><div className="flex w-full flex-col gap-2 sm:w-auto"><select className="input max-w-full sm:max-w-xs" aria-label={`Materia para ${item.rawName}`} value={item.subjectId ?? ""} onChange={event => updateMatch(index, event.target.value)}><option value="">Ignorar esta fila</option>{catalog.map(subject => <option key={subject.id} value={String(subject.id)}>{subject.name}</option>)}</select><select className="input max-w-full sm:max-w-xs" aria-label={`Estado para ${item.rawName}`} value={item.status ?? "passed"} onChange={event => setMatches(current => current.map((currentItem, currentIndex) => currentIndex === index ? { ...currentItem, status: event.target.value as "passed" | "regular" | "pending" } : currentItem))}><option value="passed">Aprobada</option><option value="regular">Regularizada</option><option value="pending">Pendiente</option></select></div></div></div>)}</div>
-      <button className="button-primary sticky bottom-3 mt-5 w-full" disabled={saving} onClick={() => void saveAnalytic()}>{saving ? "Guardando..." : `Guardar ${matches.filter(item => item.subjectId).length} materias`}</button>
+      <div className="border-2 border-cronopios-ink bg-white p-5 shadow-[4px_4px_0_0_#221E21]"><h2 className="font-display text-2xl font-black">Revisá tu analítico</h2><div className="mt-4 grid gap-3 text-sm sm:grid-cols-3"><p><strong>Carrera:</strong> {degreeOptions.find(option => option.value === degree)?.label ?? "No detectada"}</p><p><strong>Plan:</strong> {curriculumOptions.find(option => option.value === curriculum)?.label ?? "No detectado"}</p><p><strong>Reconocidas:</strong> {matches.filter(item => item.subjectId).length} de {matches.length}</p><p><strong>Para revisar:</strong> {matches.filter(item => !item.reviewed).length}</p></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold">Carrera<select className="input mt-1" value={degree} disabled={loading} onChange={event => void changeReviewContext(curriculum, event.target.value as DegreeValue)}>{degreeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="text-sm font-bold">Plan<select className="input mt-1" value={curriculum} disabled={loading} onChange={event => void changeReviewContext(event.target.value as CurriculumValue, degree)}>{curriculumOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div><label className="mt-4 flex items-start gap-2 text-sm font-bold"><input type="checkbox" checked={contextConfirmed} onChange={event => setContextConfirmed(event.target.checked)} /> Confirmé que la carrera y el plan corresponden a este analítico.</label>{matches.some(item => !item.reviewed) && <p className="mt-4 bg-yellow-100 p-3 text-sm">Hay materias que necesitan revisión. Ninguna sugerencia se guardará automáticamente.</p>}{parsed.warnings.map(warning => <p key={warning} className="mt-4 flex gap-2 bg-yellow-100 p-3 text-sm"><TriangleAlert size={18} className="shrink-0" />{warning}</p>)}{parsed.reportedApprovedCount !== undefined && parsed.reportedApprovedCount !== matches.length && <p className="mt-4 bg-yellow-100 p-3 text-sm">El analítico indica {parsed.reportedApprovedCount} materias aprobadas, pero pudimos reconocer {matches.length}. Revisemos las que faltan.</p>}</div>
+      <div className="mt-4 space-y-3">{matches.map((item, index) => <div key={`${item.rawName}-${index}`} className="border-2 border-cronopios-ink bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold">{item.rawName}</p><p className="mt-1 text-xs uppercase tracking-widest text-cronopios-magenta">{item.kind} · {item.status === "regular" ? "Regularizada" : item.status === "pending" ? "Pendiente" : "Aprobada"}{item.grade !== undefined ? ` · Nota ${item.grade}` : " · Nota no detectada"}</p>{item.passedAt && <p className="mt-1 text-xs text-cronopios-ink/55">{item.passedAt}</p>}{item.candidateId && <p className="mt-1 text-xs text-ink/65">Sugerencia: {catalog.find(subject => String(subject.id) === String(item.candidateId))?.name}. Elegila solo si coincide.</p>}</div><div className="flex w-full flex-col gap-2 sm:w-auto"><select className="input max-w-full sm:max-w-xs" aria-label={`Materia para ${item.rawName}`} value={item.ignored ? "__ignore" : item.subjectId ?? ""} onChange={event => updateMatch(index, event.target.value)}><option value="">Elegir materia</option><option value="__ignore">Ignorar esta fila</option>{catalog.map(subject => <option key={subject.id} value={String(subject.id)}>{subject.name}</option>)}</select><select className="input max-w-full sm:max-w-xs" aria-label={`Estado para ${item.rawName}`} value={item.status ?? "passed"} onChange={event => setMatches(current => current.map((currentItem, currentIndex) => currentIndex === index ? { ...currentItem, status: event.target.value as "passed" | "regular" | "pending" } : currentItem))}><option value="passed">Aprobada</option><option value="regular">Regularizada</option><option value="pending">Pendiente</option></select></div></div></div>)}</div>
+      <button className="button-primary sticky bottom-3 mt-5 w-full" disabled={saving || loading || !contextConfirmed || matches.some(item => !item.reviewed)} onClick={() => void saveAnalytic()}>{saving ? "Guardando..." : `Guardar ${matches.filter(item => item.subjectId).length} materias`}</button>
     </div>}
     {message && <p className="mt-5 bg-cronopios-green/40 p-3 text-sm font-bold">{message}</p>}
     {error && <div className="mt-5 bg-red-100 p-3 text-sm font-bold text-red-800">{error}<div className="mt-3 flex flex-wrap gap-3"><button className="underline" onClick={() => setError("")}>Intentar de nuevo</button><button className="underline" onClick={() => setStep("choose")}>Cargar materias a mano</button></div></div>}

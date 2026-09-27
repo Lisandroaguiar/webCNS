@@ -1,148 +1,47 @@
 "use client";
 
+import Link from "next/link";
+import type { Route } from "next";
 import { ExternalLink, Mail, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { catedras, CATEDRAS_SOURCE_URL, ESTUDIOS_HYS_SOURCE_URL, type CatedraContact } from "@/data/catedras";
-import { detectScheduleConflicts, isCurrentSchedule, sameSubject, type WeekSchedule } from "@/lib/academic/weekly-schedule";
-import { formatScheduleTime, scheduleSubjectLabel } from "@/lib/academic/schedule-display";
+import { catedras, CATEDRAS_SOURCE_URL, ESTUDIOS_HYS_SOURCE_URL } from "@/data/catedras";
 
-type Schedule = WeekSchedule & { notes: string | null; source_label: string; source_url: string };
+function normalize(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
 
-export function CatedrasDirectory({ schedules = [], planSubjects = [], initialQuery = "", selectedSchedules = [], activeCurriculum = null, period, authenticated = false }: { schedules?: Schedule[]; planSubjects?: Array<{ id: string; name: string }>; initialQuery?: string; selectedSchedules?: WeekSchedule[]; activeCurriculum?: string | null; period: { academicYear: number; semester: number }; authenticated?: boolean }) {
+export function CatedrasDirectory({ planSubjects = [], initialQuery = "", authenticated = false }: {
+  planSubjects?: Array<{ id: string; name: string }>;
+  initialQuery?: string;
+  authenticated?: boolean;
+}) {
   const [query, setQuery] = useState(initialQuery);
-  const [selected, setSelected] = useState(selectedSchedules);
-  const [pending, setPending] = useState<Schedule | null>(null);
-  const [busyId, setBusyId] = useState<number | null>(null);
-  const [weekMessage, setWeekMessage] = useState("");
-  const [manualBusy, setManualBusy] = useState<string | null>(null);
-  async function addManual(subjectId: string) {
-    setManualBusy(subjectId); setWeekMessage("");
-    try {
-      const response = await fetch("/api/mi-semana/manual", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ subjectId }) });
-      const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "No pudimos agregar la materia.");
-      setWeekMessage("Materia agregada. Abrí Mi agenda para asignarle día, hora y aula.");
-    } catch (error) { setWeekMessage(error instanceof Error ? error.message : "No pudimos agregar la materia."); }
-    finally { setManualBusy(null); }
+  const filtered = useMemo(() => catedras.filter(item => !query || normalize([item.area, item.materia, item.nombresAlternativos, item.contacto, item.docentes].filter(Boolean).join(" ")).includes(normalize(query))), [query]);
+  function agendaHref(item: (typeof catedras)[number]) {
+    const names = [item.materia, ...(item.nombresAlternativos?.split(" · ") ?? [])].map(normalize);
+    const matches = planSubjects.filter(subject => names.includes(normalize(subject.name)));
+    const destination = matches.length === 1
+      ? `/dashboard/agenda?subject=${encodeURIComponent(matches[0].id)}`
+      : "/dashboard/agenda?add=course";
+    return (authenticated ? destination : `/login?next=${encodeURIComponent(destination)}`) as Route;
   }
-  const comparable = (schedule: Schedule) => selected.filter(item => activeCurriculum && isCurrentSchedule(item, period, activeCurriculum) && item.id !== schedule.id);
-  const alternativesFor = (schedule: Schedule) => comparable(schedule).filter(item => sameSubject(item, schedule));
-  const conflictsFor = (schedule: Schedule) => detectScheduleConflicts([...comparable(schedule), schedule]).filter(pair => pair.first.id === schedule.id || pair.second.id === schedule.id).map(pair => pair.first.id === schedule.id ? pair.second : pair.first);
-  async function changeSelection(schedule: Schedule, mode: "add" | "replace" | "remove") {
-    setBusyId(schedule.id);
-    setWeekMessage("");
-    try {
-      const response = await fetch("/api/mi-semana", { method: mode === "remove" ? "DELETE" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ scheduleId: schedule.id, replaceSameSubject: mode === "replace" }) });
-      const result = await response.json() as { error?: string; replacedIds?: number[] };
-      if (!response.ok) throw new Error(result.error ?? "No pudimos actualizar Mi agenda.");
-      setSelected(current => mode === "remove" ? current.filter(item => item.id !== schedule.id) : [...current.filter(item => item.id !== schedule.id && !(result.replacedIds ?? []).includes(item.id)), schedule]);
-      setWeekMessage(mode === "remove" ? "Quitada de Mi agenda." : "Agregada a Mi agenda ✓");
-      setPending(null);
-    } catch (error) { setWeekMessage(error instanceof Error ? error.message : "No pudimos actualizar Mi agenda."); }
-    finally { setBusyId(null); }
-  }
-  function selectionAction(schedule: Schedule) {
-    if (!authenticated || !activeCurriculum || !isCurrentSchedule(schedule, period, activeCurriculum)) return null;
-    const isSelected = selected.some(item => item.id === schedule.id);
-    return <div className="mt-2 flex flex-wrap items-center gap-2"><button type="button" disabled={busyId != null} onClick={() => isSelected ? void changeSelection(schedule, "remove") : alternativesFor(schedule).length || conflictsFor(schedule).length ? setPending(schedule) : void changeSelection(schedule, "add")} className={isSelected ? "button-destructive text-xs" : "button-primary text-xs"}>{isSelected ? "✓ En Mi agenda · Quitar" : "Agregar este horario"}</button>{!schedule.end_time && <span className="text-xs text-ink/60">Duración no informada</span>}</div>;
-  }
-  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/\b(i{1,3}|iv|v)\b/g, value => ({ i: "1", ii: "2", iii: "3", iv: "4", v: "5" }[value] ?? value)).replace(/[^a-z0-9]+/g, " ").trim();
-  const meaningfulTokens = (value: string) => new Set(normalize(value).split(" ").filter(token => token.length > 2 && !["taller", "lenguaje", "tecnologia", "multimedial", "materia", "plan", "nuevo", "viejo", "comision"].includes(token)));
-  const matchScore = (schedule: Schedule, materia: string) => {
-    const scheduleName = normalize(schedule.raw_subject_name);
-    const subjectName = normalize(materia);
-    if (scheduleName.includes(subjectName) || subjectName.includes(scheduleName)) return 100;
-    const scheduleTokens = meaningfulTokens(schedule.raw_subject_name);
-    const subjectTokens = meaningfulTokens(materia);
-    const overlap = Array.from(subjectTokens).filter(token => scheduleTokens.has(token)).length;
-    const numberMatch = subjectName.match(/\b[1-5]\b/)?.[0] === scheduleName.match(/\b[1-5]\b/)?.[0];
-    return overlap * 10 + (numberMatch ? 8 : 0);
-  };
-  const cardNames = (item: CatedraContact) => [item.materia, ...(item.nombresAlternativos?.split(" · ") ?? [])];
-  const cardMatchScore = (schedule: Schedule, item: CatedraContact) => Math.max(...cardNames(item).map(name => matchScore(schedule, name)));
-  const schedulesFor = (item: CatedraContact) => schedules.filter(schedule => cardMatchScore(schedule, item) >= 18).sort((a, b) => cardMatchScore(b, item) - cardMatchScore(a, item));
-  const bestCardFor = (schedule: Schedule) => catedras
-    .map(item => ({ item, score: cardMatchScore(schedule, item) }))
-    .sort((a, b) => b.score - a.score)[0];
-  const cardSchedules = (item: CatedraContact) => schedulesFor(item).filter(schedule => {
-    const best = bestCardFor(schedule);
-    return best?.item === item;
-  });
-  const filtered = useMemo(() => {
-    const normalized = normalize(query);
-    if (!normalized) return catedras;
-    return catedras.filter(item => normalize([item.area, item.materia, item.nombresAlternativos, item.contacto, item.docentes].filter(Boolean).join(" ")).includes(normalized));
-  }, [query]);
-  const visibleSchedules = useMemo(() => {
-    const normalized = normalize(query);
-    return schedules.filter(schedule => !normalized || normalize(schedule.raw_subject_name).includes(normalized));
-  }, [query, schedules]);
-  const visibleCardScheduleIds = new Set(filtered.flatMap(item => cardSchedules(item).map(schedule => schedule.id)));
-  const unmatchedSchedules = visibleSchedules.filter(schedule => !visibleCardScheduleIds.has(schedule.id));
-  const unscheduledSubjects = planSubjects.filter(subject => !schedules.some(schedule =>
-    (schedule.subject_id === subject.id || normalize(schedule.raw_subject_name) === normalize(subject.name)) && schedule.start_time && schedule.end_time
-  ) && (!query || normalize(subject.name).includes(normalize(query))));
-  function groupedSchedules(rows: Schedule[]) {
-    const groups = new Map<string, Schedule[]>();
-    for (const row of rows) {
-      const name = scheduleSubjectLabel(row, row.semester ?? period.semester).primary;
-      const key = normalize(name);
-      groups.set(key, [...(groups.get(key) ?? []), row]);
-    }
-    return Array.from(groups.values());
-  }
-  function headingName(name: string, item?: CatedraContact) {
-    const sourceName = item && cardNames(item).find(candidate => normalize(candidate) === normalize(name));
-    if (sourceName) return sourceName;
-    return name === name.toLocaleUpperCase("es") ? name.charAt(0) + name.slice(1).toLocaleLowerCase("es") : name;
-  }
-  function meetingRows(rows: Schedule[]) {
-    return rows.map(schedule => <div key={schedule.id} className="mt-3 border-t border-ink/15 pt-2 text-sm">
-      <p className="font-bold">{schedule.weekday} · {formatScheduleTime(schedule.start_time)}{schedule.end_time ? `–${formatScheduleTime(schedule.end_time)}` : ""}</p>
-      <p className="text-ink/70">{schedule.classroom || "Aula a confirmar"}</p>
-      {selectionAction(schedule)}
-    </div>);
-  }
+  const otherSubjects = planSubjects.filter(subject => !catedras.some(item => normalize(item.materia) === normalize(subject.name) || item.nombresAlternativos?.split(" · ").some(name => normalize(name) === normalize(subject.name))))
+    .filter(subject => !query || normalize(subject.name).includes(normalize(query)));
 
   return <div>
-    {weekMessage && <p role="status" className="mb-4 border-l-4 border-cronopios-magenta bg-white p-3 text-sm font-bold">{weekMessage}</p>}
-    {pending && <div role="dialog" aria-modal="true" aria-label="Confirmar horario" className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center"><div className="w-full max-w-lg border-2 border-ink bg-cronopios-paper p-5 shadow-[6px_6px_0_0_#221E21]"><h2 className="font-display text-xl font-black">Revisá esta comisión</h2><p className="mt-2 font-bold">{pending.raw_subject_name} · {pending.weekday} {pending.start_time?.slice(0,5)}</p>{alternativesFor(pending).length > 0 && <p className="mt-3 text-sm">Ya tenés otra comisión de esta materia en Mi agenda.</p>}{conflictsFor(pending).length > 0 && <p className="mt-3 text-sm">Se superpone con: {conflictsFor(pending).map(item => `${item.raw_subject_name} · ${item.start_time?.slice(0,5)}–${item.end_time?.slice(0,5)}`).join(", ")}.</p>}<div className="mt-5 flex flex-wrap gap-2">{alternativesFor(pending).length > 0 && <button disabled={busyId != null} onClick={() => void changeSelection(pending, "replace")} className="button-primary">Reemplazar</button>}<button disabled={busyId != null} onClick={() => void changeSelection(pending, "add")} className="button-secondary">{alternativesFor(pending).length ? "Agregar ambas" : "Agregar igual"}</button><button disabled={busyId != null} onClick={() => setPending(null)} className="button-text">Cancelar</button></div></div></div>}
-    <div className="relative">
-      <Search className="absolute left-4 top-3.5 text-ink/40" size={20} aria-hidden />
-      <label className="sr-only" htmlFor="catedras-search">Buscar cátedra</label>
-      <input id="catedras-search" className="input pl-12" placeholder="Buscar materia, área, cátedra o contacto..." value={query} onChange={event => setQuery(event.target.value)} />
-    </div>
-    <p className="mt-4 text-sm text-ink/50">{filtered.length + new Set(unmatchedSchedules.map(schedule => schedule.raw_subject_name)).size} resultado(s)</p>
-    <div className="mt-3 grid gap-4 md:grid-cols-2">
-      {filtered.map(item => <article key={`${item.area}-${item.materia}`} className="card min-w-0 transition hover:-translate-y-1 hover:border-coral/30">
-        <p className="text-xs font-semibold uppercase tracking-widest text-coral">{item.area}</p>
-        <h2 className="mt-2 font-display text-xl font-bold">{scheduleSubjectLabel({ raw_subject_name: item.materia, curriculum: "old" }, period.semester).primary}</h2>
-        {scheduleSubjectLabel({ raw_subject_name: item.materia, curriculum: "old" }, period.semester).oldName ? <p className="mt-1 text-xs text-ink/55">(antes: {item.materia}, plan viejo)</p> : item.nombresAlternativos && <p className="mt-2 text-sm text-ink/55">{item.nombresAlternativos}</p>}
-        {item.docentes && <p className="mt-4 text-sm font-medium text-ink/75">{item.docentes}</p>}
-        {groupedSchedules(cardSchedules(item)).map(group => {
-          const label = scheduleSubjectLabel(group[0], group[0].semester ?? period.semester);
-          const sameHeading = normalize(headingName(label.primary, item)) === normalize(scheduleSubjectLabel({ raw_subject_name: item.materia, curriculum: "old" }, period.semester).primary);
-          return <div key={normalize(label.primary)} className="mt-4 border-l-4 border-cronopios-magenta pl-3">{!sameHeading && <p className="font-bold">{headingName(label.primary, item)}</p>}{!sameHeading && label.oldName && <p className="text-xs text-ink/55">(antes: {label.oldName}, plan viejo)</p>}{meetingRows(group)}</div>;
-        })}
-        {item.contacto ? <p className="mt-4 flex min-w-0 items-start gap-2 whitespace-pre-line text-sm text-ink/70 [overflow-wrap:anywhere]"><Mail className="mt-0.5 shrink-0 text-coral" size={16} />{item.contacto}</p> : <p className="mt-4 text-sm italic text-ink/45">No se publicó un contacto específico.</p>}
-        {item.redes && <div className="mt-4 flex flex-wrap gap-3">{item.redes.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="min-h-11 py-2 text-sm font-semibold text-coral hover:underline">{link.label} ↗</a>)}</div>}
-      </article>)}
-      {!filtered.length && !unmatchedSchedules.length && <p className="text-sm text-ink/60">No encontramos cátedras con esa búsqueda.</p>}
-    </div>
-    {unmatchedSchedules.length > 0 && <section className="mt-10">
-      <h2 className="font-display text-2xl font-black">Otros horarios publicados</h2>
-      <p className="mt-2 text-sm text-ink/60">Estos horarios fueron publicados oficialmente, pero todavía no tienen una cátedra vinculada en la guía.</p>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        {groupedSchedules(unmatchedSchedules).map(group => {
-          const label = scheduleSubjectLabel(group[0], group[0].semester ?? period.semester);
-          return <article key={normalize(label.primary)} className="card"><h3 className="font-display text-xl font-bold">{headingName(label.primary)}</h3>{label.oldName && <p className="mt-1 text-xs text-ink/55">(antes: {label.oldName}, plan viejo)</p>}{meetingRows(group)}</article>;
-        })}
-      </div>
-    </section>}
-    {authenticated && unscheduledSubjects.length > 0 && <section className="mt-10"><h2 className="font-display text-2xl font-black">Materias sin horario completo</h2><p className="mt-2 text-sm text-ink/60">Podés sumarlas a Mi agenda y asignarles un horario personal mientras se confirma el oficial.</p><div className="mt-4 grid gap-3 md:grid-cols-2">{unscheduledSubjects.map(subject => <article key={subject.id} className="card"><h3 className="font-display text-lg font-bold">{subject.name}</h3><button type="button" disabled={manualBusy != null} onClick={() => void addManual(subject.id)} className="button-primary mt-3 text-sm">Agregar a Mi agenda</button></article>)}</div></section>}
-    <div className="mt-8 flex flex-wrap gap-4 text-sm font-semibold">
-      <a href={CATEDRAS_SOURCE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-coral hover:underline">Publicación original <ExternalLink size={15} /></a>
-      <a href={ESTUDIOS_HYS_SOURCE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-coral hover:underline">Programas y contactos 2026 <ExternalLink size={15} /></a>
-    </div>
+    <div className="relative"><Search className="absolute left-4 top-3.5 text-ink/40" size={20} aria-hidden /><label className="sr-only" htmlFor="catedras-search">Buscar cátedra</label><input id="catedras-search" className="input pl-12" placeholder="Buscar materia, área, cátedra o contacto..." value={query} onChange={event => setQuery(event.target.value)} /></div>
+    <p className="mt-4 text-sm text-ink/50">{filtered.length + otherSubjects.length} resultado(s)</p>
+    <div className="mt-3 grid gap-4 md:grid-cols-2">{filtered.map(item => <article key={`${item.area}-${item.materia}`} className="card min-w-0 transition hover:-translate-y-1 hover:border-coral/30">
+      <p className="text-xs font-semibold uppercase tracking-widest text-coral">{item.area}</p>
+      <h2 className="mt-2 font-display text-xl font-bold">{item.materia}</h2>
+      {item.nombresAlternativos && <p className="mt-2 text-sm text-ink/55">{item.nombresAlternativos}</p>}
+      {item.docentes && <p className="mt-4 text-sm font-medium text-ink/75">{item.docentes}</p>}
+      {item.contacto && <p className="mt-4 flex min-w-0 items-start gap-2 whitespace-pre-line text-sm text-ink/70 [overflow-wrap:anywhere]"><Mail className="mt-0.5 shrink-0 text-coral" size={16} />{item.contacto}</p>}
+      {item.redes && <div className="mt-4 flex flex-wrap gap-3">{item.redes.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="min-h-11 py-2 text-sm font-semibold text-coral hover:underline">{link.label} ↗</a>)}</div>}
+      <Link href={agendaHref(item)} className="button-secondary mt-4 text-xs">Agregar a Mi agenda</Link>
+    </article>)}
+    {authenticated && otherSubjects.map(subject => <article key={subject.id} className="card min-w-0"><p className="text-xs font-semibold uppercase tracking-widest text-coral">Materia del plan</p><h2 className="mt-2 font-display text-xl font-bold">{subject.name}</h2><Link href={`/dashboard/agenda?subject=${encodeURIComponent(subject.id)}`} className="button-secondary mt-4 text-xs">Agregar a Mi agenda</Link></article>)}
+    {!filtered.length && !otherSubjects.length && <p className="text-sm text-ink/60">No encontramos cátedras con esa búsqueda.</p>}</div>
+    <div className="mt-8 flex flex-wrap gap-4 text-sm font-semibold"><a href={CATEDRAS_SOURCE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-coral hover:underline">Publicación original <ExternalLink size={15} /></a><a href={ESTUDIOS_HYS_SOURCE_URL} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 text-coral hover:underline">Programas y contactos 2026 <ExternalLink size={15} /></a></div>
   </div>;
 }

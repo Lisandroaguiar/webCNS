@@ -6,9 +6,14 @@ export type ParsedAnalytic = {
   subjects: ParsedAnalyticSubject[]; reportedApprovedCount?: number;
   reportedAverage?: number; reportedProgress?: number; warnings: string[];
 };
-export function normalizeSubjectName(name: string) {
-  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+export function normalizeAcademicSubjectName(name: string) {
+  const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase()
+    .replace(/\u00a0/g, " ").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  // Only a terminal level is unambiguous. Words inside the title are preserved.
+  const roman = { i: "1", ii: "2", iii: "3", iv: "4", v: "5", vi: "6" } as Record<string, string>;
+  return normalized.replace(/\b(i|ii|iii|iv|v|vi)$/, level => roman[level]);
 }
+export const normalizeSubjectName = normalizeAcademicSubjectName;
 function metadataNumber(text: string, pattern: RegExp) {
   const match = text.match(pattern);
   return match ? Number(match[1].replace(",", ".")) : undefined;
@@ -25,7 +30,8 @@ export function parseAnalyticDocument(text: string): ParsedAnalytic {
     if (/^(?:asignaturas\s+)?aprobadas\s*:?$/i.test(line)) { section = "passed"; pending = ""; continue; }
     if (/^(?:asignaturas\s+)?regularizadas\s*:?$/i.test(line)) { section = "regular"; pending = ""; continue; }
     // Headers, footers and summaries must never become part of a subject.
-    if (/^(?:asignatura\b|materia\b|nota\b|fecha\b|acta\b|página\b|pagina\b|total\b|promedio\b|porcentaje\b|observaciones\b|facultad\b|universidad\b|profesorado\b|licenciatura\b|reporte\b|apellido\b|dni\b|plan\b|estado\b|otro tipo\b|lugar\b|código\b|no cotejado\b|https?:)/i.test(line)) { pending = ""; continue; }
+    if (/^(?:asignatura|materia)(?:\s+(?:c[oó]digo|nota|fecha|acta|estado|plan))*$/i.test(line) ||
+      /^(?:nota\b|fecha\b|acta\b|página\b|pagina\b|total\b|promedio\b|porcentaje\b|observaciones\b|facultad\b|universidad\b|profesorado\b|licenciatura\b|reporte\b|apellido\b|dni\b|plan\b|estado\b|otro tipo\b|lugar\b|código\b|no cotejado\b|https?:)/i.test(line)) { pending = ""; continue; }
     const value = (pending ? `${pending} ${line}` : line).replace(/\s*\|\s*/g, " ");
     const match = value.match(/^(.*?)\s+(10|[0-9](?:[.,]\d+)?)\s*(?:\([^)]*\))?\s+(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})(?:\s+\d{3,})?(?:\s+(aprobada?|regularizada?|regular|pendiente|desaprobada?|libre|promocionada?|equivalencia))?\s*$/i);
     if (!match) {

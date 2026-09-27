@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { agendaItemsForDate, datePlusDays, hasAgendaConflict, localDay, occursOn, sortAgendaItems, validatePersonalEvent, type PersonalEvent } from "./personal-calendar";
-import type { WeekSchedule } from "./weekly-schedule";
 import type { CustomWeekSlot } from "./custom-week";
 
 const event: PersonalEvent = { id: "a", title: "Dentista", event_date: "2026-09-23", start_time: null, end_time: null, location: null, notes: null, category: "personal", recurrence_type: "none" };
-const emptySources = { official: [], manual: [], personal: [], fda: [], period: { academicYear: 2026, semester: 2 }, curriculum: "new" };
+const emptySources = { manual: [], personal: [], fda: [], period: { academicYear: 2026, semester: 2 } };
 
 describe("Mi agenda", () => {
   it("valida eventos con y sin horario y rechaza rangos inválidos", () => {
@@ -28,13 +27,18 @@ describe("Mi agenda", () => {
     expect(agendaItemsForDate("2026-09-23", emptySources)).toEqual([]);
   });
 
-  it("mantiene selecciones de Sprint 7 y cursadas manuales junto a eventos FDA", () => {
-    const official: WeekSchedule = { id: 12, subject_id: "subject-1", raw_subject_name: "Taller", weekday: "Miércoles", start_time: "09:00", end_time: "11:00", commission: "1", classroom: "5", campus: "Central", curriculum: "new", academic_year: 2026, semester: 2, status: "stale" };
-    const manual: CustomWeekSlot = { id: 4, subject_id: "subject-2", subject_name: "Seminario", weekday: "Miércoles", start_time: "13:00", end_time: "15:00", classroom: null, location: null, commission: null, source_schedule_id: null, academic_year: 2026, semester: 2 };
-    const items = agendaItemsForDate("2026-09-23", { ...emptySources, official: [official], manual: [manual], fda: [{ id: 3, title: "Inscripción", registration_start: "2026-09-23", registration_end: null, starts_at: null, ends_at: null }] });
-    expect(items.map(item => item.title)).toEqual(["Inscripción", "Taller", "Seminario"]);
-    expect(items.map(item => item.source)).toEqual([undefined, "official", "manual"]);
-    expect(hasAgendaConflict(items[1], items[2])).toBe(false);
+  it("combina cursadas personales y fechas FDA sin horarios institucionales", () => {
+    const manual: CustomWeekSlot = { id: 4, subject_id: "subject-2", subject_name: "Seminario", weekday: "Miércoles", start_time: "13:00", end_time: "15:00", classroom: null, location: null, commission: null, academic_year: 2026, semester: 2 };
+    const items = agendaItemsForDate("2026-09-23", { ...emptySources, manual: [manual], fda: [{ id: 3, title: "Inscripción", registration_start: "2026-09-23", registration_end: null, starts_at: null, ends_at: null }] });
+    expect(items.map(item => item.title)).toEqual(["Inscripción", "Seminario"]);
+    expect(hasAgendaConflict(items[0], items[1])).toBe(false);
+  });
+
+  it("muestra únicamente el aula y la hora que eligió el estudiante", () => {
+    const personal: CustomWeekSlot = { id: 4, subject_id: "subject-1", subject_name: "Taller", weekday: "Miércoles", start_time: "14:00", end_time: "18:00", classroom: "Aula 8", location: "Sede elegida", commission: "2", notes: "Llevar materiales", academic_year: 2026, semester: 2 };
+    const items = agendaItemsForDate("2026-09-23", { ...emptySources, manual: [personal] });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ start_time: "14:00", location: "Aula 8 · Sede elegida", notes: "Llevar materiales" });
   });
 
   it("solo detecta conflictos cuando coinciden fecha y horas conocidas", () => {

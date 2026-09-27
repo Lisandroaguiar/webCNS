@@ -4,7 +4,7 @@ import { useState } from "react";
 
 type Source = { id: string | number; key: string; name: string; last_checked_at: string | null; last_success_at: string | null };
 type Run = { id: string | number; source_id: string | number; started_at: string; status: string; records_found: number; records_changed: number; warning_count: number; error_summary: string | null };
-type Draft = { id: number; table: "academic_events" | "course_schedules"; label: string; source_label: string; status: string };
+type Draft = { id: number; table: "academic_events"; label: string; source_label: string; status: string };
 
 export function AdminImportsPanel({ sources, runs, drafts }: { sources: Source[]; runs: Run[]; drafts: Draft[] }) {
   const [items, setItems] = useState(runs);

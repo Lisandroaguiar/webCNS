@@ -16,14 +16,6 @@ export const getPublishedAcademicEvents = unstable_cache(async () => {
   return data ?? [];
 }, ["published-academic-events"], { revalidate: 300, tags: ["academic-events"] });
 
-export const getPublishedCourseSchedules = unstable_cache(async () => {
-  const { data, error } = await publicClient().from("course_schedules")
-    .select("id,subject_id,raw_subject_name,weekday,start_time,end_time,commission,classroom,campus,notes,source_label,source_url,curriculum,academic_year,semester,status")
-    .eq("status", "published").order("weekday").order("start_time");
-  if (error) throw error;
-  return data ?? [];
-}, ["published-course-schedules"], { revalidate: 300, tags: ["course-schedules"] });
-
 export const getPublishedCommunityPosts = unstable_cache(async () => {
   const { data, error } = await publicClient().from("community_posts")
     .select("id,title,body,event_type,event_date,event_time,location,image_url,link_url,accent,created_at,updated_at")

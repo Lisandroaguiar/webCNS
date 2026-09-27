@@ -14,19 +14,19 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || !isAdmin(user.email)) return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   const body = await request.json().catch(() => ({})) as { table?: string; id?: number; action?: "publish" | "discard" };
-  if (!["academic_events", "course_schedules"].includes(body.table ?? "") || !body.id || !["publish", "discard"].includes(body.action ?? "")) {
+  if (body.table !== "academic_events" || !body.id || !["publish", "discard"].includes(body.action ?? "")) {
     return NextResponse.json({ error: "Revisión inválida." }, { status: 400 });
   }
   const admin = createAdminClient();
   const status = body.action === "publish" ? "published" : "stale";
-  const { error } = await admin.from(body.table!).update({ status, updated_at: new Date().toISOString() }).eq("id", body.id);
+  const { error } = await admin.from("academic_events").update({ status, updated_at: new Date().toISOString() }).eq("id", body.id);
   if (error) {
     const message = error.message.toLowerCase().includes("invalid api key")
       ? "La clave server-side de Supabase no es válida para este proyecto. Revisá SUPABASE_SERVICE_ROLE_KEY y reiniciá Next.js."
       : error.message;
     return NextResponse.json({ error: message }, { status: 422 });
   }
-  if (body.table === "academic_events" && body.action === "publish") await recalculatePendingRemindersForEvent(body.id);
-  revalidateTag(body.table === "academic_events" ? "academic-events" : "course-schedules");
+  if (body.action === "publish") await recalculatePendingRemindersForEvent(body.id);
+  revalidateTag("academic-events");
   return NextResponse.json({ ok: true });
 }
