@@ -49,4 +49,14 @@ describe("matching seguro del analítico", () => {
     expect(result[0].kind).toBe("AMBIGUOUS");
     expect(result[0].subjectId).toBeUndefined();
   });
+
+  it("no asigna cuatro talleres SIU reales a lugares genéricos por orden", () => {
+    const rows = ["Taller Complementario Escenografía", "Taller Complementario Grabado", "Taller Complementario Muralismo", "Taller Complementario Pintura"];
+    const result = matchAnalyticSubjects(rows.map(rawName => ({ rawName })), [
+      { id: "taller-basico", nombre: "Taller Básico I" },
+      { id: "lenguaje", nombre: "Lenguaje Visual I" },
+    ]);
+    expect(result).toHaveLength(4);
+    expect(result.every(row => !row.subjectId && !row.reviewed)).toBe(true);
+  });
 });

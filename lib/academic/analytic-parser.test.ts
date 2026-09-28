@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { parseAnalyticDocument } from "./analytic-parser";
+import { detectAcademicContext, parseAnalyticDocument } from "./analytic-parser";
+
+it("detecta Artes Plásticas sólo con orientación declarada explícitamente", () => {
+  expect(detectAcademicContext("Licenciatura en Artes Plásticas\nPlan 2023\nOrientación: Grabado y Arte Impreso")).toMatchObject({
+    detectedProgramFamily: "Artes Plásticas", detectedPlanYear: 2023, detectedTitle: "licenciatura", detectedOrientation: "grabado_arte_impreso"
+  });
+  expect(detectAcademicContext("Profesorado en Artes Plásticas\nPlan 2006\nTaller de Dibujo").detectedOrientation).toBeUndefined();
+  expect(detectAcademicContext("PROFESORADO EN ARTES PLÁSTICAS CON ORIENTACIÓN EN DIBUJO\nPlan: 2006")).toMatchObject({
+    detectedTitle: "profesorado", detectedPlanYear: 2006, detectedOrientation: "dibujo"
+  });
+});
 
 describe("parseAnalyticDocument", () => {
   it("lee materias con nota y fecha en la misma fila", () => {
@@ -53,5 +63,16 @@ describe("parseAnalyticDocument", () => {
   it("no descarta una materia real cuyo nombre empieza con Materia", () => {
     const result = parseAnalyticDocument("Asignaturas aprobadas\nMateria de prueba no existente 9 (Nueve) 17/12/2021 29949\nTotal de asignaturas aprobadas: 1");
     expect(result.subjects).toEqual([{ rawName: "Materia de prueba no existente", grade: 9, passedAt: "2021-12-17", status: "passed" }]);
+  });
+
+  it("separa el total de aprobadas de los créditos optativos informados por SIU", () => {
+    const result = parseAnalyticDocument([
+      "PROFESORADO EN ARTES PLÁSTICAS CON ORIENTACIÓN EN DIBUJO", "Plan: 2006",
+      "Aprobadas", "Lenguaje Visual I 9 (Nueve) 29/11/2019 26704",
+      "Créditos / Optativas", "Taller Complementario Grabado 9 (Nueve) 15/07/2020 27986",
+      "Total de asignaturas aprobadas: 1", "Total de créditos/optativas: 1",
+    ].join("\n"));
+    expect(result.subjects).toHaveLength(2);
+    expect(result).toMatchObject({ detectedOrientation: "dibujo", reportedApprovedCount: 1, reportedElectiveCount: 1 });
   });
 });

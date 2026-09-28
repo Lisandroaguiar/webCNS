@@ -103,6 +103,7 @@ export function OnboardingShell() {
       if (!response.ok) throw new Error(payload.error ?? "No pudimos leer este analítico. Probá con el PDF original de SIU Guaraní o cargá las materias a mano.");
       const result = payload;
       if (!result.subjects?.length) throw new Error("No pudimos encontrar materias en este analítico. Probá con el PDF original de SIU Guaraní o cargá las materias a mano.");
+      if (result.detectedProgramFamily === "Artes Plásticas") throw new Error("Detectamos Artes Plásticas. Elegí título, orientación y plan en Mis trayectorias antes de asociar materias; no las guardaremos en Multimedia.");
       const detectedDegree = result.detectedDegree;
       const detectedCurriculum = result.detectedCurriculum;
       if (detectedDegree) setDegree(detectedDegree);
@@ -147,6 +148,7 @@ export function OnboardingShell() {
     <p className="eyebrow">Primer paso</p>
     <h1 className="mt-2 font-display text-4xl font-black">Armemos tu recorrido</h1>
     <p className="mt-3 text-cronopios-ink/65">Podés subir tu analítico o empezar marcando las materias a mano.</p>
+    <Link href="/dashboard/trayectorias" className="button-secondary mt-4 inline-flex">Estudio Artes Plásticas · elegir título, orientación y plan</Link>
     {step === "choose" && <div className="mt-8 grid gap-4 md:grid-cols-2">
       <article className="relative border-2 border-cronopios-ink bg-cronopios-pink p-5 shadow-[5px_5px_0_0_#221E21]"><Tape className="-top-5 left-1/2 -translate-x-1/2" />
         <FileUp size={26} aria-hidden /><p className="mt-5 font-mono text-xs font-bold uppercase tracking-widest">Más rápido</p><h2 className="mt-2 font-display text-2xl font-black">Subir mi analítico</h2>

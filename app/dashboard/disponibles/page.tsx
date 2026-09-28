@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { detectDegree } from "@/lib/academic/curriculum";
 import { getCourseEligibility, type CourseEligibility, type EligibilitySubject } from "@/lib/academic/course-eligibility";
+import { evaluateEnrollmentEligibility, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
 
 function CourseCard({ item }: { item: CourseEligibility }) {
   const label = item.status === "available" ? "Ya podés cursarla" : item.status === "blocked" ? `Te faltan ${item.missingRequirements.length} requisitos` : item.status === "unknown" ? "Revisión manual" : item.status === "in_progress" ? "Regularizada" : "Aprobada";
@@ -23,6 +24,22 @@ export default async function DisponiblesPage() {
   const user = await getCurrentUser();
   if (!user) return <p>Iniciá sesión para ver tu recorrido.</p>;
   const supabase = await createClient();
+  const { data: active } = await supabase.from("user_enrollments").select("id,program_id,curriculum_id,orientation_id").eq("user_id", user.id).eq("is_active", true).maybeSingle();
+  const { data: activePlan } = active ? await supabase.from("curricula").select("catalog_kind,display_name").eq("id", active.curriculum_id).maybeSingle() : { data: null };
+  if (active && activePlan?.catalog_kind === "curriculum_subjects") {
+    const [{ data: program }, { data: rawSubjects }, { data: rules }, { data: history }, { data: rollout }] = await Promise.all([
+      supabase.from("academic_programs").select("name,degree_type").eq("id", active.program_id).single(),
+      supabase.from("curriculum_subjects").select("id,curriculum_id,subject_id,official_code,official_name,year_level,degree_scope,orientation_condition,requirement_kind,review_status").eq("curriculum_id", active.curriculum_id).order("year_level"),
+      supabase.from("curriculum_prerequisites").select("target_curriculum_subject_id,required_curriculum_subject_id,purpose,required_status"),
+      supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status").eq("enrollment_id", active.id),
+      supabase.from("curriculum_rollout").select("year_level,available_from").eq("curriculum_id", active.curriculum_id),
+    ]);
+    if (!program || !rawSubjects) return <p className="card">No pudimos cargar esta trayectoria. Intentá de nuevo.</p>;
+    const enrollment: Enrollment = { id: active.id, programId: active.program_id, curriculumId: active.curriculum_id, orientationId: active.orientation_id, degreeType: program.degree_type };
+    const subjects = rawSubjects.map(row => ({ id: row.id, curriculumId: row.curriculum_id, subjectId: row.subject_id, officialCode: row.official_code, officialName: row.official_name, yearLevel: row.year_level, degreeScope: row.degree_scope, orientationCondition: row.orientation_condition, requirementKind: row.requirement_kind, reviewStatus: row.review_status })) as CurriculumSubject[];
+    const result = evaluateEnrollmentEligibility({ enrollment, subjects, prerequisites: (rules ?? []).map(row => ({ targetId: row.target_curriculum_subject_id, requiredId: row.required_curriculum_subject_id, purpose: row.purpose, requiredStatus: row.required_status })), history: Object.fromEntries((history ?? []).map(row => [row.curriculum_subject_id, row.status])), currentYear: new Date().getFullYear(), rollout: Object.fromEntries((rollout ?? []).map(row => [row.year_level, row.available_from])) });
+    return <div><p className="eyebrow">{program.name} · {activePlan.display_name}</p><h1 className="mt-3 font-display text-4xl font-black">Qué podés cursar</h1><p className="mt-3 text-sm text-ink/70">Algunas correlatividades de este plan todavía requieren revisión. Las materias pendientes aparecen como revisión manual; no asumimos equivalencias entre planes ni orientaciones.</p><div className="mt-7 grid gap-3 md:grid-cols-2">{result.map(row => <article key={row.subject.id} className="card"><span className="status-badge">{row.status === "available" ? "Disponible según reglas verificadas" : row.status === "blocked" ? "Faltan correlativas" : row.status === "completed" ? "Aprobada" : row.status === "in_progress" ? "Cursada" : "Revisión manual"}</span><h2 className="mt-2 font-display text-xl font-black">{row.subject.officialName}</h2><p className="mt-1 text-xs text-ink/60">{row.subject.yearLevel}.º año · {row.subject.officialCode}</p>{row.status === "unknown" && <p className="mt-2 text-sm">{row.reason}</p>}{row.status === "blocked" && <p className="mt-2 text-sm">Requisitos pendientes: {row.missing.length}.</p>}<Link href={`/dashboard/agenda?subject=${encodeURIComponent(row.subject.id)}`} className="button-secondary mt-3 inline-flex">Agregar a Mi agenda</Link></article>)}</div></div>;
+  }
   const [{ data: profile, error: profileError }, { data: subjects, error: subjectsError }, { data: history, error: historyError }] = await Promise.all([
     supabase.from("profiles").select("curriculum").eq("id", user.id).maybeSingle(),
     supabase.from("subjects").select("id,name,code,year,curriculum").order("year").order("name"),

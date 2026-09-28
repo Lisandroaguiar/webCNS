@@ -1,0 +1,48 @@
+SPRINT 9.1 — FILAS MANUAL_REVIEW
+Fuente: consulta a Supabase de producción, 2026-09-28.
+Total: 42 (Plan 2006: 22; Plan 2023: 20).
+Formato: plan | materia destino | código | nombre | documento fuente.
+Motivo para cada fila: las reglas de correlatividad o el alcance individual aún no pudieron verificarse inequívocamente con el cuadro oficial. La fila existe en el catálogo, pero su elegibilidad automática queda bloqueada. Se requiere cotejo con fuente académica institucional o constancia real; no se resuelve por semejanza textual.
+
+plastica-2006 | plastica-2006-produccion-textos | H0005 | Producción de Textos | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-historia-visual-1 | H0001 | Historia de las Artes Visuales I | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-basico-1 | P0033 | Taller Básico I | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-comp-1 | P0083 | Taller Complementario I | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-comp-2 | P0083 | Taller Complementario II | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-dibujo-comp-3 | P0004 | Dibujo Complementario III | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-estetica | H0051 | Estética | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-basico-2 | P0034 | Taller Básico II | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-comp-3 | P0083 | Taller Complementario III | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-comp-4 | P0057 | Taller Complementario IV | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-dibujo-comp-4 | P0005 | Dibujo Complementario IV | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-epistemologia | H0016 | Epistemología de las Artes | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-fundamentos-educacion | H0031 | Fundamentos Psicopedagógicos de la Educación | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-metodologia | H0030 | Metodología de la Investigación | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-basico-3 | P0035 | Taller Básico III | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-comp-5 | P0057 | Taller Complementario V (Artes Combinadas) | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-taller-comp-6 | P0058 | Taller Complementario VI (Fotografía e Imagen Digital) | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-teoria-practica | H0050 | Teoría de la Práctica Artística | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-seminario-1 | O0010 | Asignatura o Seminario a Elección | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-didactica | H0032 | Didáctica Especial y Práctica de la Enseñanza | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-legislacion | H0070 | Legislación y Práctica Cultural | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2006 | plastica-2006-graduacion | P0049 | Taller de Trabajo de Graduación | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf
+plastica-2023 | plastica-2023-taller-basico-1 | P0033 | Taller Básico 1 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-comp-1 | P0083 | Taller Complementario 1 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-comp-2 | P0083 | Taller Complementario 2 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-basico-2 | P0034 | Taller Básico 2 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-comp-3 | P0083 | Taller Complementario 3 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-comp-4 | P0083 | Taller Complementario 4 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-dibujo-4 | P0005 | Dibujo 4 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-fundamentos-educacion | H0031 | Fundamentos de la Educación | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-historia-visual-3 | H0007 | Historia de las Artes Visuales 3 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-metodologia | H0030 | Metodología de la Investigación | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-basico-3 | P0035 | Taller Básico 3 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-comp-artes | P0057 | Taller Complementario (Artes Combinadas) | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-taller-comp-foto | P0058 | Taller Complementario (Fotografía e Imagen Digital) | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-teoria-arte | H0113 | Teoría del Arte | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-didactica | H0032 | Didáctica Especial y Prácticas de la Enseñanza | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-historia-visual-4 | H0008 | Historia de las Artes Visuales 4 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-legislacion | H0070 | Legislación y Política Cultural | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-seminario-1 | O0010 | Seminario a Elección 1 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-seminario-2 | O0011 | Seminario a Elección 2 | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf
+plastica-2023 | plastica-2023-graduacion | P0049 | Taller de Trabajo de Graduación | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf

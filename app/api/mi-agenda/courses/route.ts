@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createClient } from "@/lib/supabase/server";
+import { isComplementaryWorkshopSlot } from "@/lib/academic/multicarrera";
 import { currentAcademicPeriod, timeMinutes, weekDays } from "@/lib/academic/weekly-schedule";
 
 function manualFields(body: Record<string, unknown>) {
@@ -24,15 +25,29 @@ export async function POST(request: Request) {
   const subjectId = String(body.subjectId ?? "");
   if (!subjectId || subjectId.length > 80) return NextResponse.json({ error: "Materia inválida." }, { status: 400 });
   const supabase = await createClient();
-  const [{ data: profile }, { data: subject }] = await Promise.all([
+  const [{ data: profile }, { data: legacySubject }, { data: enrollment }] = await Promise.all([
     supabase.from("profiles").select("curriculum").eq("id", user.id).maybeSingle(),
     supabase.from("subjects").select("id,name,curriculum").eq("id", subjectId).maybeSingle(),
+    supabase.from("user_enrollments").select("id,curriculum_id,program_id,orientation_id").eq("user_id", user.id).eq("is_active", true).maybeSingle(),
   ]);
-  if (!profile?.curriculum || !subject || subject.curriculum !== profile.curriculum) return NextResponse.json({ error: "La materia no corresponde a tu plan." }, { status: 422 });
+  const { data: activePlan } = enrollment ? await supabase.from("curricula").select("catalog_kind").eq("id", enrollment.curriculum_id).maybeSingle() : { data: null };
+  let subjectName = legacySubject?.name;
+  if (enrollment && activePlan?.catalog_kind === "curriculum_subjects") {
+    const [{ data: planSubject }, { data: program }] = await Promise.all([
+      supabase.from("curriculum_subjects").select("official_name,degree_scope,orientation_condition").eq("id", subjectId).eq("curriculum_id", enrollment.curriculum_id).maybeSingle(),
+      supabase.from("academic_programs").select("degree_type").eq("id", enrollment.program_id).maybeSingle(),
+    ]);
+    if (!planSubject || isComplementaryWorkshopSlot({ curriculumId: enrollment.curriculum_id, officialName: planSubject.official_name }) || (planSubject.degree_scope !== "both" && planSubject.degree_scope !== program?.degree_type) ||
+      (planSubject.orientation_condition === "not_dibujo" && enrollment.orientation_id === "dibujo"))
+      return NextResponse.json({ error: "La materia no corresponde a tu trayectoria activa." }, { status: 422 });
+    subjectName = planSubject.official_name;
+  } else if (!profile?.curriculum || !legacySubject || legacySubject.curriculum !== profile.curriculum) {
+    return NextResponse.json({ error: "La materia no corresponde a tu plan." }, { status: 422 });
+  }
   const period = currentAcademicPeriod();
   const fields = manualFields(body);
   if (!fields) return NextResponse.json({ error: "Elegí día, inicio y fin válidos." }, { status: 400 });
-  const { data, error } = await supabase.from("user_course_entries").insert({ user_id: user.id, subject_id: subjectId, subject_name: subject.name, academic_year: period.academicYear, semester: period.semester, ...fields }).select("id").single();
+  const { data, error } = await supabase.from("user_course_entries").insert({ user_id: user.id, subject_id: subjectId, subject_name: subjectName, academic_year: period.academicYear, semester: period.semester, ...fields }).select("id").single();
   if (error) return NextResponse.json({ error: "No pudimos agregar la cursada." }, { status: 422 });
   return NextResponse.json({ ok: true, id: data.id });
 }

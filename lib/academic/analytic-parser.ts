@@ -3,7 +3,11 @@ import { detectCurriculum, detectDegree, type CurriculumValue, type DegreeValue 
 export type ParsedAnalyticSubject = { rawName: string; grade?: number; passedAt?: string; status?: "passed" | "regular" | "pending" };
 export type ParsedAnalytic = {
   detectedDegree?: DegreeValue; detectedCurriculum?: CurriculumValue;
-  subjects: ParsedAnalyticSubject[]; reportedApprovedCount?: number;
+  detectedProgramFamily?: "Artes Plásticas" | "Diseño Multimedial";
+  detectedPlanYear?: 2006 | 2023 | 2024;
+  detectedOrientation?: string;
+  detectedTitle?: DegreeValue;
+  subjects: ParsedAnalyticSubject[]; reportedApprovedCount?: number; reportedElectiveCount?: number;
   reportedAverage?: number; reportedProgress?: number; warnings: string[];
 };
 export function normalizeAcademicSubjectName(name: string) {
@@ -14,6 +18,20 @@ export function normalizeAcademicSubjectName(name: string) {
   return normalized.replace(/\b(i|ii|iii|iv|v|vi)$/, level => roman[level]);
 }
 export const normalizeSubjectName = normalizeAcademicSubjectName;
+const plasticOrientations = [
+  ["dibujo", "dibujo"], ["grabado y arte impreso", "grabado_arte_impreso"],
+  ["pintura", "pintura"], ["ceramica", "ceramica"], ["escenografia", "escenografia"],
+  ["escultura", "escultura"], ["muralismo y arte publico monumental", "muralismo_arte_publico_monumental"],
+] as const;
+export function detectAcademicContext(text: string) {
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const detectedProgramFamily = /artes plasticas/.test(normalized) ? "Artes Plásticas" as const : /diseno multimedial/.test(normalized) ? "Diseño Multimedial" as const : undefined;
+  const detectedPlanYear = Number(normalized.match(/\bplan\s*[:\-]?\s*(2006|2023|2024)\b/)?.[1]) || undefined;
+  const orientationText = normalized.match(/\borientacion\s*(?:(?:en)\s+|[:\-]\s*)?([^\n\r]+)/)?.[1]?.trim();
+  const detectedOrientation = detectedProgramFamily === "Artes Plásticas" && orientationText ? plasticOrientations.find(([name]) => orientationText.startsWith(name))?.[1] : undefined;
+  const detectedTitle = /profesorado en artes plasticas/.test(normalized) ? "profesorado" as const : /licenciatura en artes plasticas/.test(normalized) ? "licenciatura" as const : undefined;
+  return { detectedProgramFamily, detectedPlanYear: detectedPlanYear as 2006 | 2023 | 2024 | undefined, detectedOrientation, detectedTitle };
+}
 function metadataNumber(text: string, pattern: RegExp) {
   const match = text.match(pattern);
   return match ? Number(match[1].replace(",", ".")) : undefined;
@@ -54,8 +72,9 @@ export function parseAnalyticDocument(text: string): ParsedAnalytic {
   }
   if (!subjects.length) warnings.push("No encontramos materias en el analítico.");
   return {
-    detectedDegree: detectDegree(text), detectedCurriculum: detectCurriculum(text), subjects, warnings,
+    detectedDegree: detectDegree(text), detectedCurriculum: detectCurriculum(text), ...detectAcademicContext(text), subjects, warnings,
     reportedApprovedCount: metadataNumber(text, /total\s+(?:de\s+)?asignaturas\s+aprobadas\s*[:\-]?\s*(\d+)/i),
+    reportedElectiveCount: metadataNumber(text, /total\s+de\s+cr[eé]ditos\s*\/\s*optativas\s*[:\-]?\s*(\d+)/i),
     reportedAverage: metadataNumber(text, /promedio\s+acad[eé]mico\s*(?:\([^)]*\))?\s*:\s*(\d+(?:[.,]\d+)?)/i),
     reportedProgress: metadataNumber(text, /porcentaje\s+de\s+avance\s*:[^\r\n%]*?([0-9]+(?:[.,][0-9]+)?)\s*%/i)
   };
