@@ -22,7 +22,7 @@ type EnrollmentHistory = { curriculum_subject_id: string; status: Status; grade:
 type PendingAcademicRecord = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; match_kind: string; record_type: "subject" | "workshop"; suggested_subject_id: string | null; resolution_status: "pending" | "ignored" | "confirmed" };
 type WorkshopOption = { id: string; orientation_id: string; verification_status: string };
 
-export function TrajectoryManager({ userId, reviewOnly = false }: { userId: string; reviewOnly?: boolean }) {
+export function TrajectoryManager({ userId, reviewOnly = false, showManagement = true }: { userId: string; reviewOnly?: boolean; showManagement?: boolean }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -304,7 +304,7 @@ export function TrajectoryManager({ userId, reviewOnly = false }: { userId: stri
   return <div className="space-y-6">
     {error && <p role="alert" className="card border-l-4 border-red-600">{error}</p>}
     {!ready && !error && <p className="card">Cargando trayectorias…</p>}
-    <section className="card"><h2 className="font-display text-2xl font-black">Mis trayectorias</h2>
+    {showManagement && <section className="card"><h2 className="font-display text-2xl font-black">Mis trayectorias</h2>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">{currentEnrollments.map(row => <button key={row.id} type="button" disabled={busy} onClick={() => setSelectedEnrollmentId(row.id)} className={`min-h-12 border-2 border-ink p-3 text-left ${row.id === active?.id ? "bg-cronopios-pink" : "bg-white"}`}>
         <strong>{programs.find(program => program.id === row.programId)?.name ?? row.programId}</strong><span className="block text-sm">{orientations.find(orientation => orientation.id === row.orientationId)?.name ? `${orientations.find(orientation => orientation.id === row.orientationId)?.name} · ` : ""}{plans.find(plan => plan.id === row.curriculumId)?.display_name}</span>{row.isActive && <span className="text-xs font-bold">Trayectoria activa</span>}{row.id === active?.id && <span className="block text-xs">Viendo esta trayectoria</span>}
       </button>)}</div>
@@ -318,7 +318,7 @@ export function TrajectoryManager({ userId, reviewOnly = false }: { userId: stri
         <label className="text-sm font-bold">Plan<select className="input mt-1" value={planId} onChange={event => setPlanId(event.target.value)}>{plans.filter(row => row.family === programs.find(program => program.id === programId)?.family).map(row => <option key={row.id} value={row.id}>{row.display_name}</option>)}</select></label>
         {plans.find(row => row.id === planId)?.requires_orientation && <label className="text-sm font-bold">Orientación<select className="input mt-1" value={orientationId} onChange={event => setOrientationId(event.target.value)}>{orientations.filter(row => row.family === plans.find(plan => plan.id === planId)?.family).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>}
       </div><button type="button" disabled={busy || !ready} onClick={() => void createEnrollment()} className="button-secondary mt-4">Agregar trayectoria</button>
-    </section>
+    </section>}
     {active && activePlan?.catalog_kind === "curriculum_subjects" && <section><p className="eyebrow">{activeProgram?.name} · {activeOrientation?.name} · {activePlan.display_name}</p><h2 className="mt-2 font-display text-2xl font-black">Materias de mi plan</h2><p className="mt-2 text-sm text-ink/65">{progress?.completed} de {progress?.total} requisitos obligatorios conocidos aprobados. Los talleres y seminarios a elección se cuentan por separado; este número no es el porcentaje total del título.</p>
       <div className="card mt-4"><h3 className="font-bold">Talleres Complementarios</h3>{workshopStorageReady ? <><p className="text-sm">{workshopCount} de 4 orientaciones verificadas. {workshopHistory.filter(row => !row.workshop_option_id).length} talleres guardados pendientes de cotejo académico.</p>{workshopHistory.map(row => <p key={row.id} className="text-sm">{row.status === "passed" ? "✓" : "○"} {row.raw_name}{!row.workshop_option_id && <span className="text-ink/55"> · orientación por verificar</span>}{(row.grade != null || row.passed_at) && <span className="block text-ink/65">{academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</span>}</p>)}</> : <p className="text-sm">El historial de talleres estará disponible cuando se aplique la actualización académica. No se muestran cifras de cumplimiento por ahora.</p>}</div>
       {openPending.length > 0 && <section className="card mt-4">

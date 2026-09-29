@@ -25,6 +25,6 @@ export default async function RecorridoPage() {
   });
   return <><header className="mb-8"><p className="eyebrow">Seguimiento académico</p><h1 className="mt-2 font-display text-4xl font-bold">Mi recorrido</h1><p className="mt-2 text-ink/55">Registrá tu avance y entendé qué materias tenés disponibles.</p></header>
     {options.length ? <TrajectorySwitcher options={options} activeId={active?.id ?? null} /> : <Link href="/dashboard/trayectorias" className="button-secondary mb-6 inline-flex">Agregar trayectoria</Link>}
-    {activePlan?.catalog_kind === "curriculum_subjects" && user ? <TrajectoryManager key={active?.id} userId={user.id} /> : <MateriasManager key={active?.id ?? "legacy"} managedByEnrollment={Boolean(active)} initialDegree={activeProgram?.degree_type === "profesorado" ? "profesorado" : "licenciatura"} initialCurriculum={activePlan?.legacy_curriculum === "new" ? "new" : "old"} />}
+    {activePlan?.catalog_kind === "curriculum_subjects" && user ? <TrajectoryManager key={active?.id} userId={user.id} showManagement={false} /> : <MateriasManager key={active?.id ?? "legacy"} managedByEnrollment={Boolean(active)} initialDegree={activeProgram?.degree_type === "profesorado" ? "profesorado" : "licenciatura"} initialCurriculum={activePlan?.legacy_curriculum === "new" ? "new" : "old"} />}
   </>;
 }
