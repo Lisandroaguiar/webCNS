@@ -27,7 +27,9 @@ export function detectAcademicContext(text: string) {
   const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const detectedProgramFamily = /artes plasticas/.test(normalized) ? "Artes Plásticas" as const : /diseno multimedial/.test(normalized) ? "Diseño Multimedial" as const : undefined;
   const detectedPlanYear = Number(normalized.match(/\bplan\s*[:\-]?\s*(2006|2023|2024)\b/)?.[1]) || undefined;
-  const orientationText = normalized.match(/\borientacion\s*(?:(?:en)\s+|[:\-]\s*)?([^\n\r]+)/)?.[1]?.trim();
+  // SIU can wrap long orientation names onto the next visual line.
+  const orientationText = normalized.slice(0, 1000).replace(/\s+/g, " ")
+    .match(/\borientacion\s*(?:(?:en)\s+|[:\-]\s*)?(.{1,120})/)?.[1]?.trim();
   const detectedOrientation = detectedProgramFamily === "Artes Plásticas" && orientationText ? plasticOrientations.find(([name]) => orientationText.startsWith(name))?.[1] : undefined;
   const detectedTitle = /profesorado en artes plasticas/.test(normalized) ? "profesorado" as const : /licenciatura en artes plasticas/.test(normalized) ? "licenciatura" as const : undefined;
   return { detectedProgramFamily, detectedPlanYear: detectedPlanYear as 2006 | 2023 | 2024 | undefined, detectedOrientation, detectedTitle };
@@ -72,7 +74,7 @@ export function parseAnalyticDocument(text: string): ParsedAnalytic {
   }
   if (!subjects.length) warnings.push("No encontramos materias en el analítico.");
   return {
-    detectedDegree: detectDegree(text), detectedCurriculum: detectCurriculum(text), ...detectAcademicContext(text), subjects, warnings,
+    detectedDegree: detectDegree(text), detectedCurriculum: detectCurriculum(text), ...detectAcademicContext(text), subjects, warnings: Array.from(new Set(warnings)),
     reportedApprovedCount: metadataNumber(text, /total\s+(?:de\s+)?asignaturas\s+aprobadas\s*[:\-]?\s*(\d+)/i),
     reportedElectiveCount: metadataNumber(text, /total\s+de\s+cr[eé]ditos\s*\/\s*optativas\s*[:\-]?\s*(\d+)/i),
     reportedAverage: metadataNumber(text, /promedio\s+acad[eé]mico\s*(?:\([^)]*\))?\s*:\s*(\d+(?:[.,]\d+)?)/i),

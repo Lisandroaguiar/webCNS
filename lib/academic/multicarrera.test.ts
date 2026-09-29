@@ -64,6 +64,7 @@ describe("modelo multicarrera", () => {
     expect(needsWorkshopOrientationReview("Taller Complementario Escenografía")).toBe(true);
     expect(needsWorkshopOrientationReview("Taller Complementario (Artes Combinadas)")).toBe(false);
     expect(needsWorkshopOrientationReview("Taller Complementario IV")).toBe(false);
+    expect(needsWorkshopOrientationReview("Escenografía Complementaria")).toBe(true);
   });
   it("distingue correlativa cursada de aprobada", () => {
     expect(meetsPrerequisite("regular", "regular")).toBe(true);
@@ -129,4 +130,5 @@ it("distingue talleres con orientación de materias obligatorias con nombre Tall
   expect(isNamedWorkshopActivity("Taller Complementario Grabado")).toBe(true);
   expect(isNamedWorkshopActivity("Taller de Trabajo de Graduación")).toBe(false);
   expect(isNamedWorkshopActivity("Taller Complementario I")).toBe(false);
+  expect(isNamedWorkshopActivity("Escenografía Complementaria")).toBe(true);
 });

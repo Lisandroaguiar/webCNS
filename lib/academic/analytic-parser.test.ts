@@ -9,6 +9,9 @@ it("detecta Artes Plásticas sólo con orientación declarada explícitamente", 
   expect(detectAcademicContext("PROFESORADO EN ARTES PLÁSTICAS CON ORIENTACIÓN EN DIBUJO\nPlan: 2006")).toMatchObject({
     detectedTitle: "profesorado", detectedPlanYear: 2006, detectedOrientation: "dibujo"
   });
+  expect(detectAcademicContext("LICENCIATURA EN ARTES PLÁSTICAS CON ORIENTACIÓN EN MURALISMO Y ARTE PÚBLICO\nMONUMENTAL\nAprobadas")).toMatchObject({
+    detectedTitle: "licenciatura", detectedOrientation: "muralismo_arte_publico_monumental"
+  });
 });
 
 describe("parseAnalyticDocument", () => {
@@ -74,5 +77,14 @@ describe("parseAnalyticDocument", () => {
     ].join("\n"));
     expect(result.subjects).toHaveLength(2);
     expect(result).toMatchObject({ detectedOrientation: "dibujo", reportedApprovedCount: 1, reportedElectiveCount: 1 });
+  });
+  it("conserva la aprobada y emite una sola advertencia ante varios intentos desaprobados", () => {
+    const result = parseAnalyticDocument([
+      "Aprobadas", "Historia Social General 7 (Siete) 15/12/2022 31844",
+      "Desaprobadas", "Historia Social General 1 (Uno) 20/04/2021 26105",
+      "Historia Social General 2 (Dos) 02/03/2021 25758",
+    ].join("\n"));
+    expect(result.subjects).toEqual([{ rawName: "Historia Social General", grade: 7, passedAt: "2022-12-15", status: "passed" }]);
+    expect(result.warnings).toHaveLength(1);
   });
 });

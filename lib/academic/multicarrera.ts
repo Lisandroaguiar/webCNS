@@ -46,13 +46,15 @@ export function isComplementaryWorkshopSlot(subject: Pick<CurriculumSubject, "of
 /** A SIU credit named for its workshop orientation cannot be stored in a generic plan slot without losing that orientation. */
 export function needsWorkshopOrientationReview(name: string) {
   const plain = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-  return /^taller complementario\s+(?![ivx]+\b|\d+\b|\()/.test(plain);
+  return /^taller complementario\s+(?![ivx]+\b|\d+\b|\()/.test(plain) ||
+    /^(?:pintura|grabado(?: y arte impreso)?|escenografia|escultura|ceramica|dibujo|muralismo(?: y arte publico monumental)?) complementari[ao]\b/.test(plain);
 }
 
 /** A named workshop is evidence of an activity, not a generic plan slot. */
 export function isNamedWorkshopActivity(name: string) {
   const plain = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-  return /^taller (?:de |complementario\s+)(?:pintura|grabado|escenografia|escultura|ceramica|dibujo|muralismo)(?:\b|\s)/.test(plain);
+  return /^taller (?:de |complementario\s+)(?:pintura|grabado|escenografia|escultura|ceramica|dibujo|muralismo)(?:\b|\s)/.test(plain) ||
+    /^(?:pintura|grabado(?: y arte impreso)?|escenografia|escultura|ceramica|dibujo|muralismo(?: y arte publico monumental)?) complementari[ao]\b/.test(plain);
 }
 
 export function planSubjectsForEnrollment(subjects: CurriculumSubject[], enrollment: Enrollment) {
