@@ -47,6 +47,12 @@ export function needsWorkshopOrientationReview(name: string) {
   return /^taller complementario\s+(?![ivx]+\b|\d+\b|\()/.test(plain);
 }
 
+/** A named workshop is evidence of an activity, not a generic plan slot. */
+export function isNamedWorkshopActivity(name: string) {
+  const plain = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  return /^taller (?:de |complementario\s+)(?:pintura|grabado|escenografia|escultura|ceramica|dibujo|muralismo)(?:\b|\s)/.test(plain);
+}
+
 export function subjectsForEnrollment(subjects: CurriculumSubject[], enrollment: Enrollment) {
   return subjects.filter(subject => subject.curriculumId === enrollment.curriculumId && !isComplementaryWorkshopSlot(subject) &&
     (subject.degreeScope === "both" || subject.degreeScope === enrollment.degreeType) &&

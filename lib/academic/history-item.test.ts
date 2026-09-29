@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { academicHistoryDetail, academicStatusLabel, enrollmentHistoryItems, legacyHistoryItems, validateAcademicEdit } from "./history-item";
+import { academicHistoryDetail, academicStatusLabel, enrollmentHistoryItems, legacyHistoryItems, pendingHistoryItems, workshopHistoryItems, validateAcademicEdit } from "./history-item";
 
 describe("historial académico común", () => {
   const subjects = [{ id: "plastica-h0003", officialName: "Lenguaje Visual I", yearLevel: 1, requirementKind: "required" as const }];
@@ -30,5 +30,13 @@ describe("historial académico común", () => {
   it("aísla el historial por trayectoria y no cuenta pendientes", () => {
     expect(enrollmentHistoryItems(subjects, [])[0].status).toBe("pending");
     expect(enrollmentHistoryItems(subjects, [{ curriculum_subject_id: "otra-materia", status: "passed", grade: 10, passed_at: null }])[0].status).toBe("pending");
+  });
+
+  it("presenta pendientes y talleres sin convertirlos en materias aprobadas", () => {
+    const pending = pendingHistoryItems([{ id: "p", raw_name: "Epistemología del Arte", status: "passed", grade: 8, passed_at: "2025-11-21", record_type: "subject", resolution_status: "pending" }]);
+    const workshop = workshopHistoryItems([{ id: "w", raw_name: "Taller de Pintura", status: "passed", grade: 9, passed_at: null }]);
+    expect(pending[0]).toMatchObject({ source: "pending_record", pending: true, requirementType: null });
+    expect(academicHistoryDetail(pending[0])).toBe("Nota 8 · 21/11/2025");
+    expect(workshop[0]).toMatchObject({ source: "workshop_history", workshop: true, displayName: "Taller de Pintura" });
   });
 });

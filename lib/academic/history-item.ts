@@ -8,8 +8,10 @@ export type AcademicHistoryItem = {
   status: AcademicStatus;
   grade: number | null;
   date: string | null;
-  source: "legacy_multimedia" | "enrollment_subject";
+  source: "legacy_multimedia" | "enrollment_subject" | "pending_record" | "workshop_history";
   requirementType: "required" | "orientation" | "choice" | null;
+  pending?: boolean;
+  workshop?: boolean;
 };
 
 export function academicStatusLabel(status: AcademicStatus) {
@@ -40,6 +42,14 @@ export function legacyHistoryItems(subjects: Array<{ id: string | number; name: 
     const saved = bySubject.get(String(subject.id));
     return { id: String(subject.id), subjectId: String(subject.id), displayName: subject.name, yearLevel: subject.year, status: saved?.status === "passed" ? "passed" : saved?.status === "regular" ? "regular" : "pending", grade: saved?.grade ?? null, date: saved?.passed_at ?? null, source: "legacy_multimedia", requirementType: null };
   });
+}
+
+export function pendingHistoryItems(records: Array<{ id: string; raw_name: string; status: AcademicStatus; grade: number | null; passed_at: string | null; record_type: "subject" | "workshop"; resolution_status: string }>): AcademicHistoryItem[] {
+  return records.filter(row => row.resolution_status === "pending").map(row => ({ id: row.id, subjectId: row.id, displayName: row.raw_name, yearLevel: null, status: row.status, grade: row.grade, date: row.passed_at, source: "pending_record", requirementType: null, pending: true, workshop: row.record_type === "workshop" }));
+}
+
+export function workshopHistoryItems(records: Array<{ id: string; raw_name: string; status: AcademicStatus; grade: number | null; passed_at: string | null }>): AcademicHistoryItem[] {
+  return records.map(row => ({ id: row.id, subjectId: row.id, displayName: row.raw_name, yearLevel: null, status: row.status, grade: row.grade, date: row.passed_at, source: "workshop_history", requirementType: "choice", workshop: true }));
 }
 
 export function validateAcademicEdit(input: { status: AcademicStatus; grade: string; date: string }) {

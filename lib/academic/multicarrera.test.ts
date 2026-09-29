@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countChoiceRequirement, countKnownProgress, evaluateEnrollmentEligibility, isComplementaryWorkshopSlot, meetsPrerequisite, needsWorkshopOrientationReview, subjectsForEnrollment, type CurriculumSubject, type Enrollment } from "./multicarrera";
+import { countChoiceRequirement, countKnownProgress, evaluateEnrollmentEligibility, isComplementaryWorkshopSlot, isNamedWorkshopActivity, meetsPrerequisite, needsWorkshopOrientationReview, subjectsForEnrollment, type CurriculumSubject, type Enrollment } from "./multicarrera";
 
 const subjects: CurriculumSubject[] = [
   { id: "2006-common", curriculumId: "plastica-2006", subjectId: "lenguaje", officialCode: "H0003", officialName: "Lenguaje Visual I", yearLevel: 1, degreeScope: "both", orientationCondition: "all", requirementKind: "required", reviewStatus: "verified" },
@@ -95,4 +95,11 @@ describe("modelo multicarrera", () => {
     expect(withPassed.find(row => row.subject.id === "requiere-cursada")?.status).toBe("available");
     expect(countKnownProgress(fixtures, enrollment("pintura", "licenciatura"), { base: "pending" }).completed).toBe(0);
   });
+});
+
+it("distingue talleres con orientación de materias obligatorias con nombre Taller", () => {
+  expect(isNamedWorkshopActivity("Taller de Pintura")).toBe(true);
+  expect(isNamedWorkshopActivity("Taller Complementario Grabado")).toBe(true);
+  expect(isNamedWorkshopActivity("Taller de Trabajo de Graduación")).toBe(false);
+  expect(isNamedWorkshopActivity("Taller Complementario I")).toBe(false);
 });
