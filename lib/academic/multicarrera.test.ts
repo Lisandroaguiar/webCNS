@@ -44,7 +44,7 @@ describe("modelo multicarrera", () => {
     expect(countKnownProgress([...subjects, ...slots], enrollment("dibujo", "profesorado"), {}).total).toBe(2);
   });
   it("respeta las denominaciones propias del Plan 2023", () => {
-    const names = ["Taller Complementario 1", "Taller Complementario 2", "Taller Complementario 3", "Taller Complementario 4", "Taller Complementario (Artes Combinadas)"];
+    const names = ["Taller Complementario 1", "Taller Complementario 2", "Taller Complementario 3", "Taller Complementario 4", "Taller Complementario (Artes Combinadas)", "Taller Complementario (Fotografía e Imagen Digital)"];
     const slots = names.map((officialName, index) => ({ ...subjects[4], id: `2023-slot-${index}`, officialName, yearLevel: index < 2 ? 2 : index < 4 ? 3 : 4, requirementKind: "choice" as const }));
     expect(planSubjectsForEnrollment([...subjects, ...slots], enrollment("escultura", "profesorado", "plastica-2023")).filter(isComplementaryWorkshopSlot).map(row => row.officialName)).toEqual(names);
   });
