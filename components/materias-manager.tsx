@@ -47,7 +47,7 @@ function toRow(subject: Subject, detected = false): SubjectRow {
   return { ...subject, estado: "pendiente", nota: "", fecha_aprobacion: "", detected };
 }
 
-export function MateriasManager() {
+export function MateriasManager({ managedByEnrollment = false, initialDegree = "licenciatura", initialCurriculum = "old" }: { managedByEnrollment?: boolean; initialDegree?: DegreeValue; initialCurriculum?: "old" | "new" }) {
   const supabase = useMemo(() => createClient(), []);
   const [file, setFile] = useState<File | null>(null);
   const [catalog, setCatalog] = useState<Subject[]>([]);
@@ -65,8 +65,8 @@ export function MateriasManager() {
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const profileLoaded = useRef(false);
   const [changingDegree, setChangingDegree] = useState(false);
-  const [degree, setDegree] = useState<DegreeValue>("licenciatura");
-  const [curriculum, setCurriculum] = useState<"old" | "new">("old");
+  const [degree, setDegree] = useState<DegreeValue>(initialDegree);
+  const [curriculum, setCurriculum] = useState<"old" | "new">(initialCurriculum);
   const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "available" | "in_progress" | "completed" | "blocked">("all");
   const eligibility = useMemo(() => getCourseEligibility({ subjects: catalog.map(item => ({ id: item.id, name: item.nombre, code: item.code, year: item.anio, curriculum: item.curriculum })), userSubjects: history, curriculum, degree }), [catalog, history, curriculum, degree]);
   const eligibilityById = useMemo(() => new Map(eligibility.map(item => [String(item.subject.id), item])), [eligibility]);
@@ -83,11 +83,11 @@ export function MateriasManager() {
         supabase.from("correlatives").select("subject_id, required_subject_id")
       ]);
       const { data: profile } = profileResult;
-      const selectedDegree = detectDegree(user.user_metadata?.degree ?? "") ?? "licenciatura";
+      const selectedDegree = managedByEnrollment ? initialDegree : detectDegree(user.user_metadata?.degree ?? "") ?? "licenciatura";
       setDegree(selectedDegree);
       if (!profileLoaded.current) {
         profileLoaded.current = true;
-        const savedCurriculum = profile?.curriculum === "new" ? "new" : "old";
+        const savedCurriculum = managedByEnrollment ? initialCurriculum : profile?.curriculum === "new" ? "new" : "old";
         if (savedCurriculum !== curriculum) { setCurriculum(savedCurriculum); return; }
       }
 
@@ -420,7 +420,7 @@ export function MateriasManager() {
   }
 
   return <div className="space-y-6">
-    <div className="card">
+    {!managedByEnrollment && <div className="card">
       <p className="eyebrow">Plan de estudios</p>
       <label className="mt-2 block font-display text-xl font-bold" htmlFor="degree">Elegí tu carrera</label>
       <select id="degree" className="input mt-3 min-h-11 w-full max-w-xl" value={degree} disabled={changingDegree || saving || loading || hasImport} onChange={event => void changeDegree(event.target.value as DegreeValue)}>
@@ -435,7 +435,7 @@ export function MateriasManager() {
         <option value="new">Plan 2024 (plan nuevo)</option>
       </select>
       <p className="mt-2 text-sm text-ink/60">El plan elegido determina las materias y correlativas de tu recorrido.</p>
-    </div>
+    </div>}
     <div className="card">
       <h2 className="font-display text-xl font-bold">Importar analítico</h2>
       <p className="mt-2 text-sm text-ink/60">Subí un PDF con texto seleccionable, CSV o TXT. Vas a poder revisar todo antes de guardar.</p>
