@@ -12,6 +12,7 @@ import { getCourseEligibility } from "@/lib/academic/course-eligibility";
 import { parseAnalitico } from "@/lib/analitico";
 import { type ParsedAnalytic, type ParsedAnalyticSubject } from "@/lib/academic/analytic-parser";
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
+import { academicHistoryDetail, legacyHistoryItems } from "@/lib/academic/history-item";
 
 type Subject = {
   id: string | number;
@@ -69,6 +70,7 @@ export function MateriasManager() {
   const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "available" | "in_progress" | "completed" | "blocked">("all");
   const eligibility = useMemo(() => getCourseEligibility({ subjects: catalog.map(item => ({ id: item.id, name: item.nombre, code: item.code, year: item.anio, curriculum: item.curriculum })), userSubjects: history, curriculum, degree }), [catalog, history, curriculum, degree]);
   const eligibilityById = useMemo(() => new Map(eligibility.map(item => [String(item.subject.id), item])), [eligibility]);
+  const academicHistoryById = useMemo(() => new Map(legacyHistoryItems(catalog.map(item => ({ id: item.id, name: item.nombre, year: item.anio })), history).map(item => [item.id, item])), [catalog, history]);
 
   useEffect(() => {
     async function loadCatalogAndHistory() {
@@ -358,12 +360,6 @@ export function MateriasManager() {
       setSaving(false);
       return;
     }
-    const missingPassedGrade = rowsToSave.find(row => row.detected && row.estado === "aprobada" && !row.nota.trim());
-    if (missingPassedGrade) {
-      setError(`Ingresá la nota de «${missingPassedGrade.nombre}» antes de marcarla como aprobada.`);
-      setSaving(false);
-      return;
-    }
     const payload = rowsToSave.map(row => ({
       subjectId: row.id,
       status: (row.estado === "aprobada" ? "passed" : row.estado === "regular" ? "regular" : "pending") as SubjectStatus,
@@ -515,12 +511,13 @@ export function MateriasManager() {
                       <input className="mt-0.5 h-5 w-5 shrink-0 accent-ink disabled:cursor-not-allowed md:mt-0" type="checkbox" checked={checked} disabled={!unlocked && !checked} onChange={event => toggleSubject(subject, event.target.checked)} />
                       <div className="flex min-w-0 items-start gap-2">
                         {!unlocked && <Lock aria-label="Materia bloqueada por correlativas" size={16} className="mt-0.5 shrink-0 text-ink/45" />}
-                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}<span className="ml-2 inline-block text-[10px] font-black uppercase tracking-wider text-cronopios-magenta">{courseStatus?.status === "available" ? "Disponible" : courseStatus?.status === "completed" ? "Aprobada" : courseStatus?.status === "in_progress" ? "Regularizada" : courseStatus?.status === "blocked" && courseStatus.missingRequirements.length === 1 ? "Te falta 1" : courseStatus?.status === "unknown" ? "Revisar regla" : ""}</span></span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}<span className="ml-2 inline-block text-[10px] font-black uppercase tracking-wider text-cronopios-magenta">{courseStatus?.status === "available" ? "Disponible" : courseStatus?.status === "completed" ? "Aprobada" : courseStatus?.status === "in_progress" ? "Cursada aprobada" : courseStatus?.status === "blocked" && courseStatus.missingRequirements.length === 1 ? "Te falta 1" : courseStatus?.status === "unknown" ? "Revisar regla" : ""}</span>{academicHistoryDetail(academicHistoryById.get(String(subject.id)) ?? { grade: null, date: null }) && <span className="block text-xs font-normal text-ink/65">{academicHistoryDetail(academicHistoryById.get(String(subject.id))!)}</span>}</span>
                       </div>
                     </div>
-                    {unlocked && activeRow && <div className="grid min-w-0 w-full gap-3 sm:grid-cols-2 md:max-w-md md:grid-cols-[120px_100px] md:gap-2">
-                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Estado</span><select aria-label={`Estado de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" value={activeRow.estado} onChange={event => updateRow(subject.id, { estado: event.target.value as SubjectRow["estado"] })}><option value="pendiente">Pendiente</option><option value="regular">Regular</option><option value="aprobada">Aprobada</option></select></label>
+                    {unlocked && activeRow && <div className="grid min-w-0 w-full gap-3 sm:grid-cols-2 md:max-w-xl md:grid-cols-[150px_80px_150px] md:gap-2">
+                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Estado</span><select aria-label={`Estado de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" value={activeRow.estado} onChange={event => updateRow(subject.id, { estado: event.target.value as SubjectRow["estado"] })}><option value="pendiente">Sin cursar</option><option value="regular">Cursada aprobada</option><option value="aprobada">Aprobada</option></select></label>
                       <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Nota</span><input aria-label={`Nota de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" type="number" min="1" max="10" step="0.1" placeholder="Nota" value={activeRow.nota} onChange={event => updateRow(subject.id, { nota: event.target.value })} /></label>
+                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Fecha</span><input aria-label={`Fecha de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" type="date" value={activeRow.fecha_aprobacion} onChange={event => updateRow(subject.id, { fecha_aprobacion: event.target.value })} /></label>
                     </div>}
                   </div>
                   {!unlocked && missingRequirements.length > 0 && <p className="relative z-[1] mt-2 pl-8 text-xs font-medium text-ink/55">Necesitás aprobar o regularizar: {missingRequirements.map(required => required.nombre).join(", ")} para poder cursarla.</p>}

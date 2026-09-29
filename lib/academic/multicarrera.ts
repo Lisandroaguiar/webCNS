@@ -59,7 +59,7 @@ export function countChoiceRequirement(requirement: ChoiceRequirement, enrollmen
     .map(choice => choice.orientationId)).size;
 }
 
-export function meetsPrerequisite(saved: RequirementStatus | "pending" | undefined, required: RequirementStatus) {
+export function meetsPrerequisite(saved: RequirementStatus | "pending" | "in_progress" | undefined, required: RequirementStatus) {
   return saved === "passed" || (required === "regular" && saved === "regular");
 }
 
@@ -67,7 +67,7 @@ export function evaluateEnrollmentEligibility(input: {
   enrollment: Enrollment;
   subjects: CurriculumSubject[];
   prerequisites: TypedPrerequisite[];
-  history: Record<string, RequirementStatus | "pending">;
+  history: Record<string, RequirementStatus | "pending" | "in_progress">;
   currentYear: number;
   rollout?: Record<number, number>;
 }) {
@@ -76,7 +76,7 @@ export function evaluateEnrollmentEligibility(input: {
   return applicable.map(subject => {
     const saved = input.history[subject.id];
     if (saved === "passed") return { subject, status: "completed" as const, missing: [] as TypedPrerequisite[] };
-    if (saved === "regular") return { subject, status: "in_progress" as const, missing: [] as TypedPrerequisite[] };
+    if (saved === "regular" || saved === "in_progress") return { subject, status: "in_progress" as const, missing: [] as TypedPrerequisite[] };
     if (subject.reviewStatus === "manual_review") return { subject, status: "unknown" as const, reason: "Reglas pendientes de revisión", missing: [] as TypedPrerequisite[] };
     const rolloutYear = input.rollout?.[subject.yearLevel];
     if (rolloutYear && input.currentYear < rolloutYear) return { subject, status: "unknown" as const, reason: "Este año del plan todavía no se implementó", missing: [] as TypedPrerequisite[] };
@@ -87,7 +87,7 @@ export function evaluateEnrollmentEligibility(input: {
   });
 }
 
-export function countKnownProgress(subjects: CurriculumSubject[], enrollment: Enrollment, history: Record<string, RequirementStatus | "pending">) {
+export function countKnownProgress(subjects: CurriculumSubject[], enrollment: Enrollment, history: Record<string, RequirementStatus | "pending" | "in_progress">) {
   const required = subjectsForEnrollment(subjects, enrollment).filter(subject => subject.requirementKind !== "choice");
   return { completed: required.filter(subject => history[subject.id] === "passed").length, total: required.length,
     excludesChoices: subjects.some(subject => subject.curriculumId === enrollment.curriculumId && subject.requirementKind === "choice") };

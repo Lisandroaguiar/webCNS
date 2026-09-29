@@ -8,14 +8,17 @@ import { subjectsForEnrollment, countKnownProgress, countChoiceRequirement, need
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
 import type { ParsedAnalytic } from "@/lib/academic/analytic-parser";
 import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
+import { academicHistoryDetail, academicStatusLabel, enrollmentHistoryItems, validateAcademicEdit, type AcademicStatus } from "@/lib/academic/history-item";
 
 type Program = { id: string; family: string; degree_type: Enrollment["degreeType"]; name: string };
 type Plan = { id: string; family: string; display_name: string; catalog_kind: "legacy_subjects" | "curriculum_subjects"; requires_orientation: boolean; legacy_curriculum: "old" | "new" | null };
 type Orientation = { id: string; family: string; name: string };
 type SavedEnrollment = Enrollment & { isActive: boolean };
-type Status = "pending" | "regular" | "passed";
+type Status = AcademicStatus;
 type ReviewRow = MatchedAnalyticSubject & { workshopSelected?: boolean };
-type WorkshopHistory = { id: string; raw_name: string; status: Status; workshop_option_id: string | null };
+type WorkshopHistory = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; workshop_option_id: string | null };
+type EnrollmentHistory = { curriculum_subject_id: string; status: Status; grade: number | null; passed_at: string | null };
+type PendingAcademicRecord = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; match_kind: string };
 type WorkshopOption = { id: string; orientation_id: string; verification_status: string };
 
 export function TrajectoryManager({ userId }: { userId: string }) {
@@ -27,8 +30,13 @@ export function TrajectoryManager({ userId }: { userId: string }) {
   const [enrollments, setEnrollments] = useState<SavedEnrollment[]>([]);
   const [selectedEnrollmentId, setSelectedEnrollmentId] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<CurriculumSubject[]>([]);
-  const [history, setHistory] = useState<Record<string, Status>>({});
+  const [historyRows, setHistoryRows] = useState<EnrollmentHistory[]>([]);
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [edit, setEdit] = useState({ status: "pending" as Status, grade: "", date: "" });
+  const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "regular" | "passed">("all");
   const [workshopHistory, setWorkshopHistory] = useState<WorkshopHistory[]>([]);
+  const [pendingRecords, setPendingRecords] = useState<PendingAcademicRecord[]>([]);
+  const [pendingChoices, setPendingChoices] = useState<Record<string, string>>({});
   const [workshopOptions, setWorkshopOptions] = useState<WorkshopOption[]>([]);
   const [workshopStorageReady, setWorkshopStorageReady] = useState(false);
   const [programId, setProgramId] = useState("plastica-lic");
@@ -47,6 +55,8 @@ export function TrajectoryManager({ userId }: { userId: string }) {
   const activePlan = plans.find(row => row.id === active?.curriculumId);
   const activeOrientation = orientations.find(row => row.id === active?.orientationId);
   const visible = active ? subjectsForEnrollment(subjects, active) : [];
+  const items = enrollmentHistoryItems(visible, historyRows);
+  const history = Object.fromEntries(historyRows.map(row => [row.curriculum_subject_id, row.status])) as Record<string, Status>;
   const progress = active ? countKnownProgress(subjects, active, history) : null;
   const workshopCount = active ? countChoiceRequirement({ id: "complementarios", curriculumId: active.curriculumId, requiredCount: 4, pool: "complementary_workshops", excludeEnrollmentOrientation: true }, active,
     workshopHistory.filter(row => row.status === "passed").flatMap(row => { const option = workshopOptions.find(item => item.id === row.workshop_option_id && item.verification_status === "verified"); return option ? [{ subjectId: option.id, orientationId: option.orientation_id }] : []; })) : 0;
@@ -74,11 +84,19 @@ export function TrajectoryManager({ userId }: { userId: string }) {
 
   useEffect(() => { void reload(); }, [supabase, userId]);
   useEffect(() => {
-    if (!active) { setHistory({}); setWorkshopHistory([]); return; }
-    void supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status").eq("enrollment_id", active.id)
-      .then(({ data, error }) => { if (error) setError("No pudimos cargar tu historial de esta trayectoria."); else setHistory(Object.fromEntries((data ?? []).map(row => [row.curriculum_subject_id, row.status as Status]))); });
-    if (active.curriculumId.startsWith("plastica-")) void supabase.from("user_workshop_history").select("id,raw_name,status,workshop_option_id").eq("enrollment_id", active.id)
-      .then(({ data, error }) => { if (error) setWorkshopStorageReady(false); else setWorkshopHistory((data ?? []) as WorkshopHistory[]); });
+    setEditingSubjectId(null);
+    setHistoryRows([]);
+    setPendingRecords([]);
+    setWorkshopHistory([]);
+    if (!active) return;
+    let cancelled = false;
+    void supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status,grade,passed_at").eq("enrollment_id", active.id)
+      .then(({ data, error }) => { if (cancelled) return; if (error) setError("No pudimos cargar tu historial de esta trayectoria."); else setHistoryRows((data ?? []) as EnrollmentHistory[]); });
+    if (active.curriculumId.startsWith("plastica-")) void supabase.from("user_workshop_history").select("id,raw_name,status,grade,passed_at,workshop_option_id").eq("enrollment_id", active.id)
+      .then(({ data, error }) => { if (cancelled) return; if (error) setWorkshopStorageReady(false); else setWorkshopHistory((data ?? []) as WorkshopHistory[]); });
+    void supabase.from("user_pending_academic_records").select("id,raw_name,status,grade,passed_at,match_kind").eq("enrollment_id", active.id)
+      .then(({ data, error }) => { if (!cancelled && !error) setPendingRecords((data ?? []) as PendingAcademicRecord[]); });
+    return () => { cancelled = true; };
   }, [active?.id, supabase]);
 
   async function createEnrollment() {
@@ -119,12 +137,35 @@ export function TrajectoryManager({ userId }: { userId: string }) {
     setBusy(false);
   }
 
-  async function saveStatus(subjectId: string, status: Status) {
+  async function saveStatus(subjectId: string) {
     if (!active) return;
     setBusy(true); setError("");
-    const { error: saveError } = await supabase.from("user_enrollment_subjects").upsert({ enrollment_id: active.id, curriculum_subject_id: subjectId, status, updated_at: new Date().toISOString() }, { onConflict: "enrollment_id,curriculum_subject_id" });
-    if (saveError) setError("No pudimos guardar esta materia.");
-    else setHistory(current => ({ ...current, [subjectId]: status }));
+    try {
+      const values = validateAcademicEdit(edit);
+      const { data, error: saveError } = await supabase.from("user_enrollment_subjects").upsert({ enrollment_id: active.id, curriculum_subject_id: subjectId, ...values, updated_at: new Date().toISOString() }, { onConflict: "enrollment_id,curriculum_subject_id" }).select("curriculum_subject_id,status,grade,passed_at").single();
+      if (saveError || !data) throw new Error("No pudimos guardar esta materia.");
+      setHistoryRows(current => [...current.filter(row => row.curriculum_subject_id !== subjectId), data as EnrollmentHistory]);
+      setEditingSubjectId(null);
+      router.refresh();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos guardar esta materia."); }
+    setBusy(false);
+  }
+
+  async function confirmPending(recordId: string) {
+    const subjectId = pendingChoices[recordId];
+    if (!active || !subjectId) { setError("Elegí una materia del plan para confirmar esta fila."); return; }
+    setBusy(true); setError("");
+    const { error: confirmError } = await supabase.rpc("confirm_pending_academic_record", { p_record_id: recordId, p_subject_id: subjectId });
+    if (confirmError) setError("No pudimos confirmar esta materia. Verificá que corresponda a la trayectoria.");
+    else {
+      const [{ data: refreshed }, { data: pending }] = await Promise.all([
+        supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status,grade,passed_at").eq("enrollment_id", active.id),
+        supabase.from("user_pending_academic_records").select("id,raw_name,status,grade,passed_at,match_kind").eq("enrollment_id", active.id),
+      ]);
+      if (refreshed) setHistoryRows(refreshed as EnrollmentHistory[]);
+      if (pending) setPendingRecords(pending as PendingAcademicRecord[]);
+      router.refresh();
+    }
     setBusy(false);
   }
 
@@ -145,26 +186,35 @@ export function TrajectoryManager({ userId }: { userId: string }) {
         ...parsed.warnings,
         ...(parsed.subjects.some(row => needsWorkshopOrientationReview(row.rawName)) ? ["Los talleres complementarios identificados por orientación necesitan revisión. Podés conservar su nombre real para cotejo académico; no los asignes a casilleros genéricos."] : []),
       ] });
-      setAnalyticMatches(matchAnalyticSubjects(parsed.subjects, visible.map(row => ({ id: row.id, nombre: row.officialName }))));
+      const { data: aliases, error: aliasError } = await supabase.from("curriculum_subject_aliases")
+        .select("curriculum_subject_id,alias,verified").in("curriculum_subject_id", visible.map(row => row.id)).eq("verified", true);
+      if (aliasError) throw new Error("No pudimos verificar los alias del plan. Recargá la página e intentá de nuevo.");
+      setAnalyticMatches(matchAnalyticSubjects(parsed.subjects, visible.map(row => ({ id: row.id, nombre: row.officialName })),
+        (aliases ?? []).map(row => ({ subject_id: row.curriculum_subject_id, alias: row.alias, verified: row.verified }))));
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos leer el analítico."); }
     finally { setBusy(false); }
   }
 
   async function saveAnalytic() {
     if (!active || !analyticConfirmed) return;
-    if (analyticMatches.some(row => !row.reviewed)) { setError("Revisá cada fila sin coincidencia antes de guardar."); return; }
     const selected = analyticMatches.filter(row => row.subjectId && !row.ignored);
     const workshops = analyticMatches.filter(row => row.workshopSelected && !row.ignored);
+    const pending = analyticMatches.filter(row => !row.reviewed && !row.subjectId && !row.workshopSelected && !row.ignored);
     if (selected.some(row => needsWorkshopOrientationReview(row.rawName))) { setError("Guardá esos talleres como actividades reales para revisión o ignorá la fila; no los asignes a casilleros genéricos."); return; }
     if (new Set(selected.map(row => String(row.subjectId))).size !== selected.length) { setError("Una materia aparece dos veces. Resolvé esas filas primero."); return; }
     setBusy(true); setError("");
-    if (workshops.length) {
-      const { error: workshopError } = await supabase.from("user_workshop_history").upsert(workshops.map(row => ({ enrollment_id: active.id, raw_name: row.rawName, activity_kind: "complementary", status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null, source: "analytic", updated_at: new Date().toISOString() })), { onConflict: "enrollment_id,raw_name,activity_kind" });
-      if (workshopError) { setError("No pudimos conservar los talleres reales del analítico."); setBusy(false); return; }
-    }
-    const { error: saveError } = selected.length ? await supabase.from("user_enrollment_subjects").upsert(selected.map(row => ({ enrollment_id: active.id, curriculum_subject_id: row.subjectId, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null, updated_at: new Date().toISOString() })), { onConflict: "enrollment_id,curriculum_subject_id" }) : { error: null };
+    const { error: saveError } = await supabase.rpc("save_enrollment_analytic_review", {
+      p_enrollment_id: active.id,
+      p_subjects: selected.map(row => ({ subject_id: String(row.subjectId), status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null })),
+      p_workshops: workshops.map(row => ({ raw_name: row.rawName, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null })),
+      p_pending: pending.map(row => ({ raw_name: row.rawName, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null, match_kind: row.kind })),
+    });
     if (saveError) setError("No pudimos guardar las materias del analítico.");
-    else { setAnalyticMatches([]); setAnalyticSummary(null); setHistory(current => ({ ...current, ...Object.fromEntries(selected.map(row => [String(row.subjectId), row.status ?? "passed"])) })); if (workshops.length) { const { data } = await supabase.from("user_workshop_history").select("id,raw_name,status,workshop_option_id").eq("enrollment_id", active.id); setWorkshopHistory((data ?? []) as WorkshopHistory[]); } }
+    else { setAnalyticMatches([]); setAnalyticSummary(null); const [{ data: refreshed }, { data: workshopData }, { data: pendingData }] = await Promise.all([
+      supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status,grade,passed_at").eq("enrollment_id", active.id),
+      supabase.from("user_workshop_history").select("id,raw_name,status,grade,passed_at,workshop_option_id").eq("enrollment_id", active.id),
+      supabase.from("user_pending_academic_records").select("id,raw_name,status,grade,passed_at,match_kind").eq("enrollment_id", active.id),
+    ]); if (refreshed) setHistoryRows(refreshed as EnrollmentHistory[]); if (workshopData) setWorkshopHistory(workshopData as WorkshopHistory[]); if (pendingData) setPendingRecords(pendingData as PendingAcademicRecord[]); router.refresh(); }
     setBusy(false);
   }
 
@@ -183,12 +233,19 @@ export function TrajectoryManager({ userId }: { userId: string }) {
       </div><button type="button" disabled={busy || !ready} onClick={() => void createEnrollment()} className="button-secondary mt-4">Agregar trayectoria</button>
     </section>
     {active && activePlan?.catalog_kind === "curriculum_subjects" && <section><p className="eyebrow">{activeProgram?.name} · {activeOrientation?.name} · {activePlan.display_name}</p><h2 className="mt-2 font-display text-2xl font-black">Materias de mi plan</h2><p className="mt-2 text-sm text-ink/65">{progress?.completed} de {progress?.total} requisitos obligatorios conocidos aprobados. Los talleres y seminarios a elección se cuentan por separado; este número no es el porcentaje total del título.</p>
-      <div className="card mt-4"><h3 className="font-bold">Talleres Complementarios</h3>{workshopStorageReady ? <><p className="text-sm">{workshopCount} de 4 orientaciones verificadas. {workshopHistory.filter(row => !row.workshop_option_id).length} talleres guardados pendientes de cotejo académico.</p>{workshopHistory.map(row => <p key={row.id} className="text-sm">{row.status === "passed" ? "✓" : "○"} {row.raw_name}{!row.workshop_option_id && <span className="text-ink/55"> · orientación por verificar</span>}</p>)}</> : <p className="text-sm">El historial de talleres estará disponible cuando se aplique la actualización académica. No se muestran cifras de cumplimiento por ahora.</p>}</div>
+      <div className="card mt-4"><h3 className="font-bold">Talleres Complementarios</h3>{workshopStorageReady ? <><p className="text-sm">{workshopCount} de 4 orientaciones verificadas. {workshopHistory.filter(row => !row.workshop_option_id).length} talleres guardados pendientes de cotejo académico.</p>{workshopHistory.map(row => <p key={row.id} className="text-sm">{row.status === "passed" ? "✓" : "○"} {row.raw_name}{!row.workshop_option_id && <span className="text-ink/55"> · orientación por verificar</span>}{(row.grade != null || row.passed_at) && <span className="block text-ink/65">{academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</span>}</p>)}</> : <p className="text-sm">El historial de talleres estará disponible cuando se aplique la actualización académica. No se muestran cifras de cumplimiento por ahora.</p>}</div>
+      {pendingRecords.length > 0 && <section className="card mt-4"><h3 className="font-bold">Pendientes de confirmar · {pendingRecords.length}</h3><p className="mt-1 text-sm text-ink/65">Estas filas del analítico no cuentan como materias aprobadas hasta que las vincules con una materia del plan.</p><div className="mt-3 space-y-3">{pendingRecords.map(row => <div key={row.id} className="border-t border-ink/20 pt-3"><p className="font-bold">{row.raw_name}</p>{academicHistoryDetail({ grade: row.grade, date: row.passed_at }) && <p className="text-sm text-ink/65">{academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</p>}<div className="mt-2 flex flex-wrap items-end gap-2"><label className="min-w-0 flex-1 text-sm">Materia del plan<select className="input mt-1" value={pendingChoices[row.id] ?? ""} onChange={event => setPendingChoices(current => ({ ...current, [row.id]: event.target.value }))}><option value="">Elegir materia</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label><button type="button" disabled={busy || !pendingChoices[row.id]} className="button-secondary" onClick={() => void confirmPending(row.id)}>Revisar y confirmar</button></div></div>)}</div></section>}
       <div className="card mt-5"><h3 className="font-display text-xl font-black">Subir analítico</h3><p className="mt-1 text-sm text-ink/65">El documento se usa para buscar materias dentro de esta trayectoria. Confirmá título, orientación y plan antes de guardar.</p><input className="input mt-3" type="file" accept=".pdf,application/pdf" onChange={event => setAnalyticFile(event.target.files?.[0] ?? null)} /><button type="button" disabled={busy || !analyticFile} onClick={() => void parseAnalytic()} className="button-secondary mt-3">Revisar materias</button>
         {analyticSummary && <div className="mt-4 text-sm"><p>Detectamos {analyticSummary.detected} filas para revisar. El documento informa {analyticSummary.approved ?? "un número no identificado de"} asignaturas aprobadas{analyticSummary.electives !== undefined ? ` y ${analyticSummary.electives} créditos/optativas` : ""}.</p>{analyticSummary.warnings.map(warning => <p key={warning} className="mt-2 text-amber-900">{warning}</p>)}</div>}
-        {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><h4 className="font-bold">Revisión del analítico</h4>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs">{row.kind}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value) } : item))}><option value="">Elegir materia</option>{needsWorkshopOrientationReview(row.rawName) && workshopStorageReady && <option value="__workshop">Guardar taller real para revisión</option>}<option value="__ignore">Ignorar fila</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> Confirmo que este analítico corresponde a {activeProgram?.name}, orientación {activeOrientation?.name}, {plans.find(row => row.id === active.curriculumId)?.display_name}.</label><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar materias revisadas</button></div>}
+        {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><h4 className="font-bold">Revisión del analítico</h4><p className="text-sm text-ink/65">Las filas sin correspondencia quedan pendientes de confirmar y no se cuentan como aprobadas.</p>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs">{row.kind}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value) } : item))}><option value="">Dejar pendiente de confirmar</option>{needsWorkshopOrientationReview(row.rawName) && workshopStorageReady && <option value="__workshop">Guardar taller real para revisión</option>}<option value="__ignore">Ignorar fila</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> Confirmo que este analítico corresponde a {activeProgram?.name}, orientación {activeOrientation?.name}, {plans.find(row => row.id === active.curriculumId)?.display_name}.</label><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar materias y pendientes</button></div>}
       </div>
-      <div className="mt-4 space-y-3">{visible.map(subject => <article key={subject.id} className="card flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs text-ink/55">{subject.yearLevel}.º año · {subject.officialCode ?? "Sin código"}</p><h3 className="font-bold">{subject.officialName}</h3>{subject.reviewStatus === "manual_review" && <p className="text-xs text-ink/60">Correlatividades pendientes de revisión: consultar el plan oficial.</p>}</div><div className="flex flex-wrap items-center gap-2"><label className="text-xs font-bold">Estado<select className="input mt-1" disabled={busy} value={history[subject.id] ?? "pending"} onChange={event => void saveStatus(subject.id, event.target.value as Status)}><option value="pending">Pendiente</option><option value="regular">Cursada</option><option value="passed">Aprobada</option></select></label><Link className="button-secondary" href={`/dashboard/agenda?subject=${encodeURIComponent(subject.id)}`}>Agregar a Mi agenda</Link></div></article>)}</div>
+      <div className="mt-5 flex flex-wrap gap-2" aria-label="Filtrar materias">{([ ["all", "Todas"], ["pending", "Pendientes"], ["in_progress", "Cursando"], ["regular", "Cursada aprobada"], ["passed", "Aprobadas"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className="filter-chip">{label}</button>)}</div>
+      <div className="mt-5 space-y-7">{Array.from(new Set(items.map(item => item.yearLevel))).sort((a, b) => (a ?? 0) - (b ?? 0)).map(year => <section key={year}><h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3><div className="space-y-3">{items.filter(item => item.yearLevel === year && (filter === "all" || item.status === filter)).map(item => {
+        const subject = visible.find(row => row.id === item.subjectId)!;
+        return <article key={item.id} className="card min-w-0"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs text-ink/55">{subject.officialCode ?? "Sin código"}</p><h4 className="font-bold [overflow-wrap:anywhere]">{item.displayName}</h4><p className="mt-1 text-sm font-semibold">{academicStatusLabel(item.status)}</p>{academicHistoryDetail(item) && <p className="text-sm text-ink/65">{academicHistoryDetail(item)}</p>}{subject.reviewStatus === "manual_review" && <p className="mt-1 text-xs text-ink/60">Correlatividades pendientes de revisión: consultar el plan oficial.</p>}</div><div className="flex flex-wrap gap-2"><button type="button" className="button-secondary" onClick={() => { setEditingSubjectId(item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); }}>Editar</button><Link className="button-secondary" href={`/dashboard/agenda?subject=${encodeURIComponent(item.id)}`}>Agregar a Mi agenda</Link></div></div>
+          {editingSubjectId === item.id && <div className="mt-4 grid gap-3 border-t border-ink/20 pt-4 sm:grid-cols-3"><label className="text-sm font-bold">Estado<select className="input mt-1" value={edit.status} onChange={event => setEdit(current => ({ ...current, status: event.target.value as Status }))}><option value="pending">Sin cursar</option><option value="in_progress">Cursando</option><option value="regular">Cursada aprobada</option><option value="passed">Aprobada</option></select></label><label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={edit.grade} onChange={event => setEdit(current => ({ ...current, grade: event.target.value }))} /></label><label className="text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={edit.date} onChange={event => setEdit(current => ({ ...current, date: event.target.value }))} /></label><div className="flex flex-wrap gap-2 sm:col-span-3"><button type="button" disabled={busy} onClick={() => void saveStatus(item.id)} className="button-primary">{busy ? "Guardando…" : "Guardar"}</button><button type="button" disabled={busy} onClick={() => setEditingSubjectId(null)} className="button-secondary">Cancelar</button></div></div>}
+        </article>;
+      })}</div></section>)}</div>
     </section>}
     {active && activePlan?.catalog_kind === "legacy_subjects" && <p className="card">Tu historial se conserva en <Link href="/dashboard/recorrido" className="font-bold underline">Mi recorrido</Link>.</p>}
   </div>;

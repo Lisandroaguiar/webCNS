@@ -84,5 +84,15 @@ describe("modelo multicarrera", () => {
     });
     expect(withRegular.find(row => row.subject.id === "requiere-aprobada")?.status).toBe("blocked");
     expect(withRegular.find(row => row.subject.id === "requiere-cursada")?.status).toBe("available");
+    const withPassed = evaluateEnrollmentEligibility({
+      enrollment: enrollment("pintura", "licenciatura"), subjects: fixtures,
+      prerequisites: [
+        { targetId: "requiere-aprobada", requiredId: "base", purpose: "enroll", requiredStatus: "passed" },
+        { targetId: "requiere-cursada", requiredId: "base", purpose: "enroll", requiredStatus: "regular" },
+      ], history: { base: "passed" }, currentYear: 2026,
+    });
+    expect(withPassed.find(row => row.subject.id === "requiere-aprobada")?.status).toBe("available");
+    expect(withPassed.find(row => row.subject.id === "requiere-cursada")?.status).toBe("available");
+    expect(countKnownProgress(fixtures, enrollment("pintura", "licenciatura"), { base: "pending" }).completed).toBe(0);
   });
 });
