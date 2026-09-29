@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countChoiceRequirement, countKnownProgress, evaluateEnrollmentEligibility, isComplementaryWorkshopSlot, isNamedWorkshopActivity, meetsPrerequisite, needsWorkshopOrientationReview, subjectsForEnrollment, type CurriculumSubject, type Enrollment } from "./multicarrera";
+import { countChoiceRequirement, countKnownProgress, evaluateEnrollmentEligibility, isComplementaryWorkshopSlot, isNamedWorkshopActivity, linkedWorkshopsBySlot, meetsPrerequisite, needsWorkshopOrientationReview, planSubjectsForEnrollment, subjectsForEnrollment, type CurriculumSubject, type Enrollment } from "./multicarrera";
 
 const subjects: CurriculumSubject[] = [
   { id: "2006-common", curriculumId: "plastica-2006", subjectId: "lenguaje", officialCode: "H0003", officialName: "Lenguaje Visual I", yearLevel: 1, degreeScope: "both", orientationCondition: "all", requirementKind: "required", reviewStatus: "verified" },
@@ -31,6 +31,33 @@ describe("modelo multicarrera", () => {
     const generic = { ...subjects[0], id: "slot", officialName: "Taller Complementario II", requirementKind: "choice" as const };
     expect(isComplementaryWorkshopSlot(generic)).toBe(true);
     expect(subjectsForEnrollment([...subjects, generic], enrollment("pintura", "licenciatura")).some(row => row.id === "slot")).toBe(false);
+    expect(planSubjectsForEnrollment([...subjects, generic], enrollment("pintura", "licenciatura")).some(row => row.id === "slot")).toBe(true);
+    expect(countKnownProgress([...subjects, generic], enrollment("pintura", "licenciatura"), { slot: "passed" })).toMatchObject({ completed: 0, total: 3 });
+  });
+  it("muestra los seis lugares del Plan 2006 en sus años sin contarlos como seis talleres cursados", () => {
+    const years = [2, 2, 3, 3, 4, 4];
+    const names = ["Taller Complementario I", "Taller Complementario II", "Taller Complementario III", "Taller Complementario IV", "Taller Complementario V (Artes Combinadas)", "Taller Complementario VI (Fotografía e Imagen Digital)"];
+    const slots = names.map((officialName, index) => ({ ...subjects[0], id: `slot-${index}`, officialName, yearLevel: years[index], requirementKind: "choice" as const }));
+    const all = planSubjectsForEnrollment([...subjects, ...slots], enrollment("dibujo", "profesorado"));
+    expect(all.filter(isComplementaryWorkshopSlot).map(row => [row.officialName, row.yearLevel])).toEqual(names.map((name, index) => [name, years[index]]));
+    expect(subjectsForEnrollment([...subjects, ...slots], enrollment("dibujo", "profesorado")).filter(isComplementaryWorkshopSlot)).toEqual([]);
+    expect(countKnownProgress([...subjects, ...slots], enrollment("dibujo", "profesorado"), {}).total).toBe(2);
+  });
+  it("respeta las denominaciones propias del Plan 2023", () => {
+    const names = ["Taller Complementario 1", "Taller Complementario 2", "Taller Complementario 3", "Taller Complementario 4", "Taller Complementario (Artes Combinadas)"];
+    const slots = names.map((officialName, index) => ({ ...subjects[4], id: `2023-slot-${index}`, officialName, yearLevel: index < 2 ? 2 : index < 4 ? 3 : 4, requirementKind: "choice" as const }));
+    expect(planSubjectsForEnrollment([...subjects, ...slots], enrollment("escultura", "profesorado", "plastica-2023")).filter(isComplementaryWorkshopSlot).map(row => row.officialName)).toEqual(names);
+  });
+  it("vincula sólo un taller real con opción verificada fuera de la orientación básica", () => {
+    const e = enrollment("pintura", "licenciatura");
+    const options = [{ id: "grabado", orientation_id: "grabado_arte_impreso", verification_status: "verified" }, { id: "pintura", orientation_id: "pintura", verification_status: "verified" }, { id: "escultura", orientation_id: "escultura", verification_status: "manual_review" }];
+    const workshops = [{ raw_name: "Taller de Grabado", curriculum_subject_id: "slot-1", workshop_option_id: "grabado", status: "passed" as const }, { raw_name: "Taller de Pintura", curriculum_subject_id: "slot-2", workshop_option_id: "pintura", status: "passed" as const }, { raw_name: "Taller de Escultura", curriculum_subject_id: "slot-3", workshop_option_id: "escultura", status: "passed" as const }, { raw_name: "Taller sin cotejo", curriculum_subject_id: null, workshop_option_id: null, status: "passed" as const }];
+    const linked = linkedWorkshopsBySlot(workshops, options, e);
+    expect(linked.get("slot-1")?.raw_name).toBe("Taller de Grabado");
+    expect(linked.has("slot-2")).toBe(false);
+    expect(linked.has("slot-3")).toBe(false);
+    expect(linked.size).toBe(1);
+    expect(countChoiceRequirement({ id: "choice", curriculumId: e.curriculumId, requiredCount: 4, pool: "complementary_workshops", excludeEnrollmentOrientation: true }, e, [{ subjectId: "grabado", orientationId: "grabado_arte_impreso" }])).toBe(1);
   });
   it("identifica créditos SIU con orientación que no caben en un casillero genérico", () => {
     expect(needsWorkshopOrientationReview("Taller Complementario Grabado")).toBe(true);

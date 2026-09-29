@@ -36,6 +36,8 @@ export type ChoiceRequirement = {
   excludeEnrollmentOrientation: boolean;
 };
 export type WorkshopChoice = { subjectId: string; orientationId: string };
+export type LinkedWorkshop = { curriculum_subject_id: string | null; workshop_option_id: string | null; status: "pending" | "in_progress" | "regular" | "passed" };
+export type VerifiedWorkshopOption = { id: string; orientation_id: string; verification_status: string };
 
 export function isComplementaryWorkshopSlot(subject: Pick<CurriculumSubject, "officialName" | "curriculumId">) {
   return subject.curriculumId.startsWith("plastica-") && /^Taller Complementario\b/i.test(subject.officialName);
@@ -53,16 +55,27 @@ export function isNamedWorkshopActivity(name: string) {
   return /^taller (?:de |complementario\s+)(?:pintura|grabado|escenografia|escultura|ceramica|dibujo|muralismo)(?:\b|\s)/.test(plain);
 }
 
-export function subjectsForEnrollment(subjects: CurriculumSubject[], enrollment: Enrollment) {
-  return subjects.filter(subject => subject.curriculumId === enrollment.curriculumId && !isComplementaryWorkshopSlot(subject) &&
+export function planSubjectsForEnrollment(subjects: CurriculumSubject[], enrollment: Enrollment) {
+  return subjects.filter(subject => subject.curriculumId === enrollment.curriculumId &&
     (subject.degreeScope === "both" || subject.degreeScope === enrollment.degreeType) &&
     (subject.orientationCondition === "all" || enrollment.orientationId !== "dibujo"));
+}
+
+/** Course pickers and eligibility exclude requirement slots; Recorrido keeps the complete plan. */
+export function subjectsForEnrollment(subjects: CurriculumSubject[], enrollment: Enrollment) {
+  return planSubjectsForEnrollment(subjects, enrollment).filter(subject => !isComplementaryWorkshopSlot(subject));
 }
 
 export function countChoiceRequirement(requirement: ChoiceRequirement, enrollment: Enrollment, choices: WorkshopChoice[]) {
   if (requirement.curriculumId !== enrollment.curriculumId) return 0;
   return new Set(choices.filter(choice => !requirement.excludeEnrollmentOrientation || choice.orientationId !== enrollment.orientationId)
     .map(choice => choice.orientationId)).size;
+}
+
+export function linkedWorkshopsBySlot<T extends LinkedWorkshop>(workshops: T[], options: VerifiedWorkshopOption[], enrollment: Enrollment) {
+  const approvedOptions = new Set(options.filter(option => option.verification_status === "verified" && option.orientation_id !== enrollment.orientationId).map(option => option.id));
+  return new Map(workshops.filter(row => row.curriculum_subject_id && row.workshop_option_id && approvedOptions.has(row.workshop_option_id))
+    .map(row => [row.curriculum_subject_id as string, row]));
 }
 
 export function meetsPrerequisite(saved: RequirementStatus | "pending" | "in_progress" | undefined, required: RequirementStatus) {
