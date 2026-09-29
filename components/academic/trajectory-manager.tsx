@@ -144,7 +144,9 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         const chosenPlan = plans.find(row => row.id === chosen?.curriculumId);
         if (chosen && chosenPlan?.catalog_kind === "legacy_subjects" && chosenPlan.legacy_curriculum) await saveAcademicProfile(supabase, chosen.degreeType, chosenPlan.legacy_curriculum);
         setSelectedEnrollmentId(id);
-        await reload(); router.refresh();
+        await reload();
+        if (showManagement) router.push("/dashboard/recorrido");
+        else router.refresh();
       } catch { setError("La trayectoria se activó, pero no pudimos sincronizar el perfil anterior. Recargá y volvé a intentarlo."); }
     }
     setBusy(false);
