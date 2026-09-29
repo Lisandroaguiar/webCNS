@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
@@ -33,6 +33,7 @@ export function TrajectoryManager({ userId }: { userId: string }) {
   const [historyRows, setHistoryRows] = useState<EnrollmentHistory[]>([]);
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [edit, setEdit] = useState({ status: "pending" as Status, grade: "", date: "" });
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "regular" | "passed">("all");
   const [workshopHistory, setWorkshopHistory] = useState<WorkshopHistory[]>([]);
   const [pendingRecords, setPendingRecords] = useState<PendingAcademicRecord[]>([]);
@@ -141,7 +142,7 @@ export function TrajectoryManager({ userId }: { userId: string }) {
     if (!active) return;
     setBusy(true); setError("");
     try {
-      const values = validateAcademicEdit(edit);
+      const values = validateAcademicEdit({ ...edit, date: dateInputRef.current?.value ?? edit.date });
       const { data, error: saveError } = await supabase.from("user_enrollment_subjects").upsert({ enrollment_id: active.id, curriculum_subject_id: subjectId, ...values, updated_at: new Date().toISOString() }, { onConflict: "enrollment_id,curriculum_subject_id" }).select("curriculum_subject_id,status,grade,passed_at").single();
       if (saveError || !data) throw new Error("No pudimos guardar esta materia.");
       setHistoryRows(current => [...current.filter(row => row.curriculum_subject_id !== subjectId), data as EnrollmentHistory]);
@@ -243,7 +244,7 @@ export function TrajectoryManager({ userId }: { userId: string }) {
       <div className="mt-5 space-y-7">{Array.from(new Set(items.map(item => item.yearLevel))).sort((a, b) => (a ?? 0) - (b ?? 0)).map(year => <section key={year}><h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3><div className="space-y-3">{items.filter(item => item.yearLevel === year && (filter === "all" || item.status === filter)).map(item => {
         const subject = visible.find(row => row.id === item.subjectId)!;
         return <article key={item.id} className="card min-w-0"><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="text-xs text-ink/55">{subject.officialCode ?? "Sin código"}</p><h4 className="font-bold [overflow-wrap:anywhere]">{item.displayName}</h4><p className="mt-1 text-sm font-semibold">{academicStatusLabel(item.status)}</p>{academicHistoryDetail(item) && <p className="text-sm text-ink/65">{academicHistoryDetail(item)}</p>}{subject.reviewStatus === "manual_review" && <p className="mt-1 text-xs text-ink/60">Correlatividades pendientes de revisión: consultar el plan oficial.</p>}</div><div className="flex flex-wrap gap-2"><button type="button" className="button-secondary" onClick={() => { setEditingSubjectId(item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); }}>Editar</button><Link className="button-secondary" href={`/dashboard/agenda?subject=${encodeURIComponent(item.id)}`}>Agregar a Mi agenda</Link></div></div>
-          {editingSubjectId === item.id && <div className="mt-4 grid gap-3 border-t border-ink/20 pt-4 sm:grid-cols-3"><label className="text-sm font-bold">Estado<select className="input mt-1" value={edit.status} onChange={event => setEdit(current => ({ ...current, status: event.target.value as Status }))}><option value="pending">Sin cursar</option><option value="in_progress">Cursando</option><option value="regular">Cursada aprobada</option><option value="passed">Aprobada</option></select></label><label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={edit.grade} onChange={event => setEdit(current => ({ ...current, grade: event.target.value }))} /></label><label className="text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={edit.date} onChange={event => setEdit(current => ({ ...current, date: event.target.value }))} /></label><div className="flex flex-wrap gap-2 sm:col-span-3"><button type="button" disabled={busy} onClick={() => void saveStatus(item.id)} className="button-primary">{busy ? "Guardando…" : "Guardar"}</button><button type="button" disabled={busy} onClick={() => setEditingSubjectId(null)} className="button-secondary">Cancelar</button></div></div>}
+          {editingSubjectId === item.id && <div className="mt-4 grid gap-3 border-t border-ink/20 pt-4 sm:grid-cols-3"><label className="text-sm font-bold">Estado<select className="input mt-1" value={edit.status} onChange={event => setEdit(current => ({ ...current, status: event.target.value as Status }))}><option value="pending">Sin cursar</option><option value="in_progress">Cursando</option><option value="regular">Cursada aprobada</option><option value="passed">Aprobada</option></select></label><label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={edit.grade} onChange={event => setEdit(current => ({ ...current, grade: event.target.value }))} /></label><label className="text-sm font-bold">Fecha opcional<input ref={dateInputRef} className="input mt-1" type="date" defaultValue={edit.date} /></label><div className="flex flex-wrap gap-2 sm:col-span-3"><button type="button" disabled={busy} onClick={() => void saveStatus(item.id)} className="button-primary">{busy ? "Guardando…" : "Guardar"}</button><button type="button" disabled={busy} onClick={() => setEditingSubjectId(null)} className="button-secondary">Cancelar</button></div></div>}
         </article>;
       })}</div></section>)}</div>
     </section>}
