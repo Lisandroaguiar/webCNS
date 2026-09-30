@@ -49,6 +49,12 @@ export function isComplementaryWorkshopSlot(subject: Pick<CurriculumSubject, "of
   return subject.curriculumId.startsWith("plastica-") && /^Taller Complementario\b/i.test(subject.officialName);
 }
 
+export function workshopOptionFitsSlot(slotName: string, optionName: string) {
+  const named = slotName.match(/\(([^)]+)\)/)?.[1];
+  return !named || optionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .includes(named.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
+}
+
 /** A SIU credit named for its workshop orientation cannot be stored in a generic plan slot without losing that orientation. */
 export function needsWorkshopOrientationReview(name: string) {
   const plain = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();

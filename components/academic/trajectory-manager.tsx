@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
-import { subjectsForEnrollment, planSubjectsForEnrollment, isComplementaryWorkshopSlot, countKnownProgress, countChoiceRequirement, needsWorkshopOrientationReview, isNamedWorkshopActivity, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
+import { subjectsForEnrollment, planSubjectsForEnrollment, isComplementaryWorkshopSlot, workshopOptionFitsSlot, linkedWorkshopsBySlot, countKnownProgress, countChoiceRequirement, needsWorkshopOrientationReview, isNamedWorkshopActivity, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
 import { classifyPlasticAnalyticRows, partitionAnalyticReview } from "@/lib/academic/analytic-review";
 import type { ParsedAnalytic } from "@/lib/academic/analytic-parser";
@@ -40,7 +40,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "regular" | "passed">("all");
   const [workshopHistory, setWorkshopHistory] = useState<WorkshopHistory[]>([]);
   const [workshopModalOpen, setWorkshopModalOpen] = useState(false);
-  const [workshopForm, setWorkshopForm] = useState({ existingId: "", rawName: "", optionId: "", status: "passed" as Status, grade: "", date: "" });
+  const [workshopForm, setWorkshopForm] = useState({ existingId: "", slotId: "", rawName: "", optionId: "", status: "passed" as Status, grade: "", date: "" });
   const [pendingRecords, setPendingRecords] = useState<PendingAcademicRecord[]>([]);
   const [pendingChoices, setPendingChoices] = useState<Record<string, string>>({});
   const [showIgnored, setShowIgnored] = useState(false);
@@ -74,7 +74,10 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const activeOrientation = orientations.find(row => row.id === active?.orientationId);
   const visible = active ? subjectsForEnrollment(subjects, active) : [];
   const planVisible = active ? planSubjectsForEnrollment(subjects, active) : [];
-  const items = enrollmentHistoryItems(planVisible.filter(subject => !isComplementaryWorkshopSlot(subject)), historyRows);
+  const items = enrollmentHistoryItems(planVisible, historyRows);
+  const workshopSlots = planVisible.filter(isComplementaryWorkshopSlot);
+  const linkedWorkshops = active ? linkedWorkshopsBySlot(workshopHistory, workshopOptions, active) : new Map<string, WorkshopHistory>();
+  const unplacedWorkshops = workshopHistory.filter(row => !row.curriculum_subject_id && row.workshop_option_id && workshopOptions.some(option => option.id === row.workshop_option_id && option.verification_status === "verified" && option.orientation_id !== active?.orientationId));
   const history = Object.fromEntries(historyRows.map(row => [row.curriculum_subject_id, row.status])) as Record<string, Status>;
   const progress = active ? countKnownProgress(subjects, active, history) : null;
   const workshopCount = active ? countChoiceRequirement({ id: "complementarios", curriculumId: active.curriculumId, requiredCount: 4, pool: "complementary_workshops", excludeEnrollmentOrientation: true }, active,
@@ -180,11 +183,15 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
     try {
       const option = verifiedWorkshopOptions.find(row => row.id === workshopForm.optionId);
       if (!option) throw new Error("Elegí un taller verificado.");
+      const chosenSlot = workshopSlots.find(slot => slot.id === workshopForm.slotId);
+      if (chosenSlot && !workshopOptionFitsSlot(chosenSlot.officialName, option.academic_name)) throw new Error("Ese taller no corresponde a este lugar del plan.");
       const existing = workshopHistory.find(row => row.id === workshopForm.existingId);
       const rawName = (existing?.raw_name ?? option.siu_name ?? option.academic_name).trim();
       const values = validateAcademicEdit({ status: workshopForm.status, grade: workshopForm.grade, date: workshopForm.date });
+      const slotId = workshopForm.slotId || existing?.curriculum_subject_id || null;
+      if (slotId && (!workshopSlots.some(slot => slot.id === slotId) || workshopHistory.some(row => row.id !== existing?.id && row.curriculum_subject_id === slotId))) throw new Error("Ese lugar del plan ya está ocupado.");
       const payload = { enrollment_id: active.id, raw_name: rawName, activity_kind: "complementary", ...values,
-        workshop_option_id: option.id, curriculum_subject_id: existing?.curriculum_subject_id ?? null, source: "manual", updated_at: new Date().toISOString() };
+        workshop_option_id: option.id, curriculum_subject_id: slotId, source: "manual", updated_at: new Date().toISOString() };
       const query = workshopForm.existingId
         ? supabase.from("user_workshop_history").update(payload).eq("id", workshopForm.existingId)
         : supabase.from("user_workshop_history").insert(payload);
@@ -192,7 +199,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       if (saveError || !data) throw new Error("No pudimos guardar el taller. Revisá si ya está vinculado a otro requisito.");
       setWorkshopHistory(current => [...current.filter(row => row.id !== data.id), data as WorkshopHistory]);
       setWorkshopModalOpen(false);
-      setWorkshopForm({ existingId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" });
+      setWorkshopForm({ existingId: "", slotId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" });
       router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos guardar el taller."); }
     setBusy(false);
@@ -367,19 +374,21 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
           const counts = row.status === "passed" && option?.verification_status === "verified" && option.orientation_id !== active.orientationId;
           return <div key={row.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-ink/15 pt-2 text-sm">
             <p className="min-w-0 [overflow-wrap:anywhere]"><span aria-hidden>{counts ? "✓ " : "○ "}</span><strong>{option?.academic_name ?? row.raw_name}</strong>{option && row.raw_name !== option.academic_name && <span className="block text-xs text-ink/60">{row.raw_name}</span>}{!counts && <span className="block text-xs text-ink/60">{option?.orientation_id === active.orientationId ? "Es tu orientación básica; no suma al requisito." : option ? academicStatusLabel(row.status) : "Pendiente de verificar orientación; todavía no suma."}</span>}{academicHistoryDetail({ grade: row.grade, date: row.passed_at }) && <span className="block text-xs text-ink/60">{academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</span>}</p>
-            {option && option.orientation_id !== active.orientationId && <button type="button" className="button-secondary" onClick={() => { setWorkshopForm({ existingId: row.id, rawName: row.raw_name, optionId: option.id, status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" }); setWorkshopModalOpen(true); }}>Editar</button>}
+            {option && option.orientation_id !== active.orientationId && <button type="button" className="button-secondary" onClick={() => { setWorkshopForm({ existingId: row.id, slotId: row.curriculum_subject_id ?? "", rawName: row.raw_name, optionId: option.id, status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" }); setWorkshopModalOpen(true); }}>Editar</button>}
           </div>;
         })}{openWorkshopPending.map(row => <p key={row.id} className="border-t border-ink/15 pt-2 text-sm">○ {row.raw_name} <span className="block text-xs text-ink/60">Pendiente de verificar orientación.</span></p>)}</div>
-        <button type="button" className="button-secondary mt-4" disabled={!workshopStorageReady || !verifiedWorkshopOptions.length} onClick={() => { setWorkshopForm({ existingId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" }); setWorkshopModalOpen(true); }}>Agregar taller</button></details>
+        <button type="button" className="button-secondary mt-4" disabled={!workshopStorageReady || !verifiedWorkshopOptions.length} onClick={() => { setWorkshopForm({ existingId: "", slotId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" }); setWorkshopModalOpen(true); }}>Agregar taller</button></details>
+        {unplacedWorkshops.map(row => { const option = workshopOptions.find(item => item.id === row.workshop_option_id); return <div key={row.id} className="mt-3 text-sm"><p>Taller registrado pendiente de ubicar: {option?.academic_name ?? row.raw_name}</p><button type="button" className="mt-1 font-bold underline" onClick={() => { setWorkshopForm({ existingId: row.id, slotId: "", rawName: row.raw_name, optionId: row.workshop_option_id ?? "", status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" }); setWorkshopModalOpen(true); }}>Ubicar en el recorrido</button></div>; })}
       </div>
       {workshopModalOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setWorkshopModalOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="workshop-dialog-title" onKeyDown={event => { if (event.key === "Escape" && !busy) setWorkshopModalOpen(false); }} className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-2 border-ink bg-white p-5 shadow-[5px_5px_0_0_#000] sm:rounded-2xl">
           <h3 id="workshop-dialog-title" className="font-display text-xl font-black">{workshopForm.existingId ? "Editar taller" : "Agregar taller"}</h3>
           <div className="mt-4 grid gap-3">
-            <label className="text-sm font-bold">Taller<select className="input mt-1" value={workshopForm.optionId} disabled={Boolean(workshopForm.existingId)} onChange={event => setWorkshopForm(current => ({ ...current, optionId: event.target.value }))}><option value="">Elegí un taller</option>{verifiedWorkshopOptions.map(option => <option key={option.id} value={option.id}>{option.academic_name}</option>)}</select></label>
+            <label className="text-sm font-bold">Taller<select className="input mt-1" value={workshopForm.optionId} disabled={Boolean(workshopForm.existingId)} onChange={event => setWorkshopForm(current => ({ ...current, optionId: event.target.value }))}><option value="">Elegí un taller</option>{verifiedWorkshopOptions.filter(option => !workshopForm.slotId || workshopOptionFitsSlot(workshopSlots.find(slot => slot.id === workshopForm.slotId)?.officialName ?? "", option.academic_name)).map(option => <option key={option.id} value={option.id}>{option.academic_name}</option>)}</select></label>
+            {!workshopForm.slotId && <label className="text-sm font-bold">Lugar en el recorrido<select className="input mt-1" value={workshopForm.slotId} onChange={event => setWorkshopForm(current => ({ ...current, slotId: event.target.value }))}><option value="">Pendiente de ubicar</option>{workshopSlots.filter(slot => !linkedWorkshops.has(slot.id) && (!workshopForm.optionId || workshopOptionFitsSlot(slot.officialName, workshopOptions.find(option => option.id === workshopForm.optionId)?.academic_name ?? ""))).map(slot => <option key={slot.id} value={slot.id}>Año {slot.yearLevel} · {slot.officialName}</option>)}</select></label>}
             <label className="text-sm font-bold">Estado<select className="input mt-1" value={workshopForm.status} onChange={event => setWorkshopForm(current => ({ ...current, status: event.target.value as Status }))}><option value="passed">Aprobada</option><option value="regular">Cursada aprobada</option><option value="in_progress">Cursando</option><option value="pending">Sin completar</option></select></label>
             <label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={workshopForm.grade} onChange={event => setWorkshopForm(current => ({ ...current, grade: event.target.value }))} /></label>
-            <label className="text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={workshopForm.date} onChange={event => setWorkshopForm(current => ({ ...current, date: event.target.value }))} /></label>
+            <details><summary className="cursor-pointer text-sm font-bold">Más información</summary><label className="mt-2 block text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={workshopForm.date} onChange={event => setWorkshopForm(current => ({ ...current, date: event.target.value }))} /></label></details>
           </div>
           <div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy || !workshopForm.optionId} className="button-primary" onClick={() => void saveWorkshop()}>{busy ? "Guardando…" : "Guardar"}</button><button type="button" disabled={busy} className="button-secondary" onClick={() => setWorkshopModalOpen(false)}>Cancelar</button></div>
         </section>
@@ -395,9 +404,13 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><label className="mb-3 flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> <span>Confirmo que este analítico corresponde a {activeProgram?.name}, orientación {activeOrientation?.name}, {plans.find(plan => plan.id === active.curriculumId)?.display_name}.</span></label><div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar y ver mi recorrido</button><a href="#revisar-analitico" className="button-secondary">Revisar las {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} ahora</a><Link href="/dashboard/recorrido" className="button-secondary">Volver a mi recorrido sin guardar</Link></div><div id="revisar-analitico"><h4 className="font-bold">Revisión del analítico</h4><p className="text-sm text-ink/65">No encontramos una coincidencia segura para algunas filas. Podés revisarlas después; todavía no afectan tu recorrido.</p>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs text-ink/65">{row.workshopSelected ? "Taller real" : ["EXACT", "ALIAS", "CONTEXT"].includes(row.kind) ? "Reconocida" : "Necesita confirmación"}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", workshopOptionId: event.target.value === "__workshop" ? item.workshopOptionId : undefined, ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value), manualOverride: true } : item))}><option value="">Dejar pendiente de confirmar</option>{needsWorkshopOrientationReview(row.rawName) && workshopStorageReady && <option value="__workshop">Guardar taller real</option>}<option value="__ignore">Ignorar fila</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}</div></div>}
       </div>
       <div className="mt-5 flex flex-wrap gap-2" aria-label="Filtrar materias">{([ ["all", "Todas"], ["pending", "Pendientes"], ["in_progress", "Cursando"], ["regular", "Cursada aprobada"], ["passed", "Aprobadas"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className="filter-chip">{label}</button>)}</div>
-      <div className="mt-5 space-y-7">{Array.from(new Set(items.map(item => item.yearLevel))).sort((a, b) => (a ?? 0) - (b ?? 0)).map(year => <section key={year}><h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3><div className="space-y-3">{items.filter(item => item.yearLevel === year && (filter === "all" || item.status === filter)).map(item => {
-        const cardStatus: SubjectCardStatus = item.status === "passed" ? "passed" : item.status === "regular" ? "regular" : item.status === "in_progress" ? "in_progress" : "pending";
-        return <AcademicSubjectCard key={item.id} name={item.displayName} status={cardStatus} grade={item.grade} onOpen={() => { setEditingSubjectId(item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); }} />;
+      <div className="mt-5 space-y-7">{Array.from(new Set(items.map(item => item.yearLevel))).sort((a, b) => (a ?? 0) - (b ?? 0)).map(year => <section key={year}><h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3><div className="space-y-3">{items.filter(item => item.yearLevel === year && (filter === "all" || (linkedWorkshops.get(item.id)?.status ?? item.status) === filter)).map(item => {
+        const slot = workshopSlots.find(row => row.id === item.id);
+        const linked = slot ? linkedWorkshops.get(slot.id) : undefined;
+        const linkedOption = linked ? workshopOptions.find(option => option.id === linked.workshop_option_id) : undefined;
+        const status = linked?.status ?? item.status;
+        const cardStatus: SubjectCardStatus = status === "passed" ? "passed" : status === "regular" ? "regular" : status === "in_progress" ? "in_progress" : "pending";
+        return <AcademicSubjectCard key={item.id} name={item.displayName} status={cardStatus} grade={linked?.grade ?? item.grade} detail={linkedOption?.academic_name} onOpen={() => { if (slot) { setWorkshopForm({ existingId: linked?.id ?? "", slotId: slot.id, rawName: linked?.raw_name ?? "", optionId: linked?.workshop_option_id ?? "", status: linked?.status ?? "passed", grade: linked?.grade == null ? "" : String(linked.grade), date: linked?.passed_at ?? "" }); setWorkshopModalOpen(true); } else { setEditingSubjectId(item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); } }} />;
       })}</div></section>)}</div>
     </section>}
     {pendingDetailId && (() => {

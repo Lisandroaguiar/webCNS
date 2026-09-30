@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countChoiceRequirement, countKnownProgress, evaluateEnrollmentEligibility, isComplementaryWorkshopSlot, isNamedWorkshopActivity, linkedWorkshopsBySlot, meetsPrerequisite, needsWorkshopOrientationReview, planSubjectsForEnrollment, subjectsForEnrollment, type CurriculumSubject, type Enrollment } from "./multicarrera";
+import { countChoiceRequirement, countKnownProgress, evaluateEnrollmentEligibility, isComplementaryWorkshopSlot, isNamedWorkshopActivity, linkedWorkshopsBySlot, meetsPrerequisite, needsWorkshopOrientationReview, planSubjectsForEnrollment, subjectsForEnrollment, workshopOptionFitsSlot, type CurriculumSubject, type Enrollment } from "./multicarrera";
 
 const subjects: CurriculumSubject[] = [
   { id: "2006-common", curriculumId: "plastica-2006", subjectId: "lenguaje", officialCode: "H0003", officialName: "Lenguaje Visual I", yearLevel: 1, degreeScope: "both", orientationCondition: "all", requirementKind: "required", reviewStatus: "verified" },
@@ -37,9 +37,11 @@ describe("modelo multicarrera", () => {
   it("muestra los seis lugares del Plan 2006 en sus años sin contarlos como seis talleres cursados", () => {
     const years = [2, 2, 3, 3, 4, 4];
     const names = ["Taller Complementario I", "Taller Complementario II", "Taller Complementario III", "Taller Complementario IV", "Taller Complementario V (Artes Combinadas)", "Taller Complementario VI (Fotografía e Imagen Digital)"];
-    const slots = names.map((officialName, index) => ({ ...subjects[0], id: `slot-${index}`, officialName, yearLevel: years[index], requirementKind: "choice" as const }));
+    const slots = names.map((officialName, index) => ({ ...subjects[0], id: `slot-${index}`, officialCode: index < 3 ? "P0083" : "P0057", officialName, yearLevel: years[index], requirementKind: "choice" as const }));
     const all = planSubjectsForEnrollment([...subjects, ...slots], enrollment("dibujo", "profesorado"));
     expect(all.filter(isComplementaryWorkshopSlot).map(row => [row.officialName, row.yearLevel])).toEqual(names.map((name, index) => [name, years[index]]));
+    expect(new Set(all.filter(isComplementaryWorkshopSlot).map(row => row.id)).size).toBe(6);
+    expect(all.filter(row => row.officialCode === "P0083" && isComplementaryWorkshopSlot(row))).toHaveLength(3);
     expect(subjectsForEnrollment([...subjects, ...slots], enrollment("dibujo", "profesorado")).filter(isComplementaryWorkshopSlot)).toEqual([]);
     expect(countKnownProgress([...subjects, ...slots], enrollment("dibujo", "profesorado"), {}).total).toBe(2);
   });
@@ -47,6 +49,11 @@ describe("modelo multicarrera", () => {
     const names = ["Taller Complementario 1", "Taller Complementario 2", "Taller Complementario 3", "Taller Complementario 4", "Taller Complementario (Artes Combinadas)", "Taller Complementario (Fotografía e Imagen Digital)"];
     const slots = names.map((officialName, index) => ({ ...subjects[4], id: `2023-slot-${index}`, officialName, yearLevel: index < 2 ? 2 : index < 4 ? 3 : 4, requirementKind: "choice" as const }));
     expect(planSubjectsForEnrollment([...subjects, ...slots], enrollment("escultura", "profesorado", "plastica-2023")).filter(isComplementaryWorkshopSlot).map(row => row.officialName)).toEqual(names);
+  });
+  it("no ubica una orientación común en un casillero reservado para otra actividad", () => {
+    expect(workshopOptionFitsSlot("Taller Complementario I", "Escenografía")).toBe(true);
+    expect(workshopOptionFitsSlot("Taller Complementario V (Artes Combinadas)", "Escenografía")).toBe(false);
+    expect(workshopOptionFitsSlot("Taller Complementario V (Artes Combinadas)", "Artes Combinadas")).toBe(true);
   });
   it("vincula sólo un taller real con opción verificada fuera de la orientación básica", () => {
     const e = enrollment("pintura", "licenciatura");
