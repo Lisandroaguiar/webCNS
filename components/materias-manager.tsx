@@ -59,6 +59,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [hasImport, setHasImport] = useState(false);
   const [importMatches, setImportMatches] = useState<MatchedAnalyticSubject[]>([]);
   const [importPlanConfirmed, setImportPlanConfirmed] = useState(false);
@@ -389,6 +390,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
       setHistory((refreshedHistory ?? []) as SavedHistory[]);
       setMessage(`${payload.length} materia(s) guardada(s) correctamente.`);
       setHasImport(false);
+      setEditingSubjectId(null);
       setImportMatches([]);
       setImportWarnings([]);
     } catch (caughtError) {
@@ -506,20 +508,22 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
                 } : null);
                 return <div key={subject.id} className={`relative min-w-0 overflow-hidden rounded-xl border-2 p-3 transition ${checked ? "border-ink bg-yellow-100 shadow-[3px_3px_0_0_#000]" : "border-ink/10 bg-cream/50"} ${!unlocked ? "opacity-75" : ""}`}>
                   {checked && <span aria-hidden className="marker-fluo" />}
-                  <div className="relative z-[1] grid min-w-0 gap-4 md:grid-cols-[auto_minmax(0,1fr)_minmax(220px,auto)] md:items-center md:gap-3">
-                    <div className="flex min-w-0 items-start gap-3 md:contents">
-                      <input className="mt-0.5 h-5 w-5 shrink-0 accent-ink disabled:cursor-not-allowed md:mt-0" type="checkbox" checked={checked} disabled={!unlocked && !checked} onChange={event => toggleSubject(subject, event.target.checked)} />
+                  <div className="relative z-[1] flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <input aria-label={`Marcar ${subject.nombre}`} className="mt-0.5 h-5 w-5 shrink-0 accent-ink disabled:cursor-not-allowed" type="checkbox" checked={checked} disabled={!unlocked && !checked} onChange={event => toggleSubject(subject, event.target.checked)} />
                       <div className="flex min-w-0 items-start gap-2">
                         {!unlocked && <Lock aria-label="Materia bloqueada por correlativas" size={16} className="mt-0.5 shrink-0 text-ink/45" />}
-                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}<span className="ml-2 inline-block text-[10px] font-black uppercase tracking-wider text-cronopios-magenta">{courseStatus?.status === "available" ? "Disponible" : courseStatus?.status === "completed" ? "Aprobada" : courseStatus?.status === "in_progress" ? "Cursada aprobada" : courseStatus?.status === "blocked" && courseStatus.missingRequirements.length === 1 ? "Te falta 1" : courseStatus?.status === "unknown" ? "Revisar regla" : ""}</span>{academicHistoryDetail(academicHistoryById.get(String(subject.id)) ?? { grade: null, date: null }) && <span className="block text-xs font-normal text-ink/65">{academicHistoryDetail(academicHistoryById.get(String(subject.id))!)}</span>}</span>
+                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}<span className="ml-2 inline-block text-[10px] font-black uppercase tracking-wider text-cronopios-magenta">{courseStatus?.status === "available" ? "Disponible" : courseStatus?.status === "completed" ? "Aprobada" : courseStatus?.status === "in_progress" ? "Cursada aprobada" : courseStatus?.status === "blocked" && courseStatus.missingRequirements.length === 1 ? "Te falta 1" : courseStatus?.status === "unknown" ? "Revisar regla" : ""}</span>{activeRow && (activeRow.nota || activeRow.fecha_aprobacion) ? <span className="block text-xs font-normal text-ink/65">{academicHistoryDetail({ grade: activeRow.nota ? Number(activeRow.nota.replace(",", ".")) : null, date: activeRow.fecha_aprobacion || null })}</span> : academicHistoryDetail(academicHistoryById.get(String(subject.id)) ?? { grade: null, date: null }) && <span className="block text-xs font-normal text-ink/65">{academicHistoryDetail(academicHistoryById.get(String(subject.id))!)}</span>}</span>
                       </div>
                     </div>
-                    {unlocked && activeRow && <div className="grid min-w-0 w-full gap-3 sm:grid-cols-2 md:max-w-xl md:grid-cols-[150px_80px_150px] md:gap-2">
-                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Estado</span><select aria-label={`Estado de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" value={activeRow.estado} onChange={event => updateRow(subject.id, { estado: event.target.value as SubjectRow["estado"] })}><option value="pendiente">Sin cursar</option><option value="regular">Cursada aprobada</option><option value="aprobada">Aprobada</option></select></label>
-                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Nota</span><input aria-label={`Nota de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" type="number" min="1" max="10" step="0.1" placeholder="Nota" value={activeRow.nota} onChange={event => updateRow(subject.id, { nota: event.target.value })} /></label>
-                      <label className="min-w-0 text-xs font-bold md:text-[0px]"><span className="mb-1 block md:sr-only">Fecha</span><input aria-label={`Fecha de ${subject.nombre}`} className="input min-h-11 w-full py-2 text-sm" type="date" value={activeRow.fecha_aprobacion} onChange={event => updateRow(subject.id, { fecha_aprobacion: event.target.value })} /></label>
-                    </div>}
+                    {unlocked && activeRow && <button type="button" className="button-secondary shrink-0" aria-expanded={editingSubjectId === String(subject.id)} onClick={() => setEditingSubjectId(current => current === String(subject.id) ? null : String(subject.id))}>{editingSubjectId === String(subject.id) ? "Cerrar edición" : "Editar"}</button>}
                   </div>
+                  {unlocked && activeRow && editingSubjectId === String(subject.id) && <div className="relative z-[1] mt-3 grid min-w-0 gap-3 border-t border-ink/20 bg-white/90 pt-3 sm:grid-cols-3">
+                    <label className="min-w-0 text-sm font-bold">Estado<select aria-label={`Estado de ${subject.nombre}`} className="input mt-1 min-h-11 w-full" value={activeRow.estado} onChange={event => updateRow(subject.id, { estado: event.target.value as SubjectRow["estado"] })}><option value="pendiente">Sin cursar</option><option value="regular">Cursada aprobada</option><option value="aprobada">Aprobada</option></select></label>
+                    <label className="min-w-0 text-sm font-bold">Nota opcional<input aria-label={`Nota de ${subject.nombre}`} className="input mt-1 min-h-11 w-full" type="number" min="1" max="10" step="0.1" value={activeRow.nota} onChange={event => updateRow(subject.id, { nota: event.target.value })} /></label>
+                    <label className="min-w-0 text-sm font-bold">Fecha opcional<input aria-label={`Fecha de ${subject.nombre}`} className="input mt-1 min-h-11 w-full" type="date" value={activeRow.fecha_aprobacion} onChange={event => updateRow(subject.id, { fecha_aprobacion: event.target.value })} /></label>
+                    <div className="sm:col-span-3"><button type="button" disabled={saving} onClick={() => void saveRows()} className="button-primary">{saving ? "Guardando..." : "Guardar cambios"}</button></div>
+                  </div>}
                   {!unlocked && missingRequirements.length > 0 && <p className="relative z-[1] mt-2 pl-8 text-xs font-medium text-ink/55">Necesitás aprobar o regularizar: {missingRequirements.map(required => required.nombre).join(", ")} para poder cursarla.</p>}
                   {courseStatus?.status === "available" && <Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(subject.id))}`} className="relative z-[1] mt-2 inline-flex min-h-10 items-center text-xs font-bold text-cronopios-magenta underline">Agregar a Mi agenda</Link>}
                 </div>;

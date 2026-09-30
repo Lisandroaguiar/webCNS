@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
-import { subjectsForEnrollment, planSubjectsForEnrollment, isComplementaryWorkshopSlot, linkedWorkshopsBySlot, countKnownProgress, countChoiceRequirement, needsWorkshopOrientationReview, isNamedWorkshopActivity, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
+import { subjectsForEnrollment, planSubjectsForEnrollment, isComplementaryWorkshopSlot, countKnownProgress, countChoiceRequirement, needsWorkshopOrientationReview, isNamedWorkshopActivity, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
-import { partitionAnalyticReview } from "@/lib/academic/analytic-review";
+import { classifyPlasticAnalyticRows, partitionAnalyticReview } from "@/lib/academic/analytic-review";
 import type { ParsedAnalytic } from "@/lib/academic/analytic-parser";
 import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
 import { academicHistoryDetail, academicStatusLabel, enrollmentHistoryItems, validateAcademicEdit, type AcademicStatus } from "@/lib/academic/history-item";
@@ -16,11 +16,11 @@ type Plan = { id: string; family: string; display_name: string; catalog_kind: "l
 type Orientation = { id: string; family: string; name: string };
 type SavedEnrollment = Enrollment & { isActive: boolean; deletedAt: string | null };
 type Status = AcademicStatus;
-type ReviewRow = MatchedAnalyticSubject & { workshopSelected?: boolean; manualOverride?: boolean };
+type ReviewRow = MatchedAnalyticSubject & { workshopSelected?: boolean; workshopOptionId?: string; manualOverride?: boolean };
 type WorkshopHistory = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; workshop_option_id: string | null; curriculum_subject_id: string | null };
 type EnrollmentHistory = { curriculum_subject_id: string; status: Status; grade: number | null; passed_at: string | null };
 type PendingAcademicRecord = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; match_kind: string; record_type: "subject" | "workshop"; suggested_subject_id: string | null; resolution_status: "pending" | "ignored" | "confirmed" };
-type WorkshopOption = { id: string; orientation_id: string; academic_name: string; verification_status: string };
+type WorkshopOption = { id: string; orientation_id: string; academic_name: string; siu_name: string | null; verification_status: string };
 
 export function TrajectoryManager({ userId, reviewOnly = false, showManagement = true }: { userId: string; reviewOnly?: boolean; showManagement?: boolean }) {
   const supabase = useMemo(() => createClient(), []);
@@ -36,7 +36,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const [edit, setEdit] = useState({ status: "pending" as Status, grade: "", date: "" });
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "regular" | "passed">("all");
   const [workshopHistory, setWorkshopHistory] = useState<WorkshopHistory[]>([]);
-  const [registeringSlotId, setRegisteringSlotId] = useState<string | null>(null);
+  const [workshopModalOpen, setWorkshopModalOpen] = useState(false);
   const [workshopForm, setWorkshopForm] = useState({ existingId: "", rawName: "", optionId: "", status: "passed" as Status, grade: "", date: "" });
   const [pendingRecords, setPendingRecords] = useState<PendingAcademicRecord[]>([]);
   const [pendingChoices, setPendingChoices] = useState<Record<string, string>>({});
@@ -71,13 +71,12 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const activeOrientation = orientations.find(row => row.id === active?.orientationId);
   const visible = active ? subjectsForEnrollment(subjects, active) : [];
   const planVisible = active ? planSubjectsForEnrollment(subjects, active) : [];
-  const items = enrollmentHistoryItems(planVisible, historyRows);
+  const items = enrollmentHistoryItems(planVisible.filter(subject => !isComplementaryWorkshopSlot(subject)), historyRows);
   const history = Object.fromEntries(historyRows.map(row => [row.curriculum_subject_id, row.status])) as Record<string, Status>;
   const progress = active ? countKnownProgress(subjects, active, history) : null;
   const workshopCount = active ? countChoiceRequirement({ id: "complementarios", curriculumId: active.curriculumId, requiredCount: 4, pool: "complementary_workshops", excludeEnrollmentOrientation: true }, active,
     workshopHistory.filter(row => row.status === "passed").flatMap(row => { const option = workshopOptions.find(item => item.id === row.workshop_option_id && item.verification_status === "verified"); return option ? [{ subjectId: option.id, orientationId: option.orientation_id }] : []; })) : 0;
   const verifiedWorkshopOptions = workshopOptions.filter(option => option.verification_status === "verified" && option.orientation_id !== active?.orientationId);
-  const linkedWorkshops = active ? linkedWorkshopsBySlot(workshopHistory, workshopOptions, active) : new Map<string, WorkshopHistory>();
 
   async function reload() {
     const [programResult, planResult, orientationResult, enrollmentResult, subjectResult, workshopOptionResult] = await Promise.all([
@@ -86,7 +85,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       supabase.from("academic_orientations").select("id,family,name"),
       supabase.from("user_enrollments").select("id,program_id,curriculum_id,orientation_id,is_active,deleted_at").eq("user_id", userId),
       supabase.from("curriculum_subjects").select("id,curriculum_id,subject_id,official_code,official_name,year_level,degree_scope,orientation_condition,requirement_kind,review_status").order("year_level").order("official_name"),
-      supabase.from("plastic_workshop_options").select("id,orientation_id,academic_name,verification_status"),
+      supabase.from("plastic_workshop_options").select("id,orientation_id,academic_name,siu_name,verification_status"),
     ]);
     const failed = [programResult, planResult, orientationResult, enrollmentResult, subjectResult].find(result => result.error);
     if (failed?.error) { setError(`No pudimos cargar las trayectorias (${failed.error.code}). Revisá que se hayan aplicado las migraciones académicas.`); return; }
@@ -158,11 +157,11 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
     setBusy(false);
   }
 
-  async function saveStatus(subjectId: string) {
+  async function saveStatus(subjectId: string, nextEdit = edit) {
     if (!active) return;
     setBusy(true); setError("");
     try {
-      const values = validateAcademicEdit(edit);
+      const values = validateAcademicEdit(nextEdit);
       const { data, error: saveError } = await supabase.from("user_enrollment_subjects").upsert({ enrollment_id: active.id, curriculum_subject_id: subjectId, ...values, updated_at: new Date().toISOString() }, { onConflict: "enrollment_id,curriculum_subject_id" }).select("curriculum_subject_id,status,grade,passed_at").single();
       if (saveError || !data) throw new Error("No pudimos guardar esta materia.");
       setHistoryRows(current => [...current.filter(row => row.curriculum_subject_id !== subjectId), data as EnrollmentHistory]);
@@ -172,23 +171,24 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
     setBusy(false);
   }
 
-  async function saveWorkshop(slotId: string) {
+  async function saveWorkshop() {
     if (!active) return;
     setBusy(true); setError("");
     try {
       const option = verifiedWorkshopOptions.find(row => row.id === workshopForm.optionId);
-      const rawName = (workshopForm.existingId ? workshopForm.rawName : option?.academic_name ?? workshopForm.rawName).trim();
-      if (!rawName) throw new Error("Escribí el nombre real del taller cursado.");
+      if (!option) throw new Error("Elegí un taller verificado.");
+      const existing = workshopHistory.find(row => row.id === workshopForm.existingId);
+      const rawName = (existing?.raw_name ?? option.siu_name ?? option.academic_name).trim();
       const values = validateAcademicEdit({ status: workshopForm.status, grade: workshopForm.grade, date: workshopForm.date });
       const payload = { enrollment_id: active.id, raw_name: rawName, activity_kind: "complementary", ...values,
-        workshop_option_id: option?.id ?? null, curriculum_subject_id: option ? slotId : null, source: "manual", updated_at: new Date().toISOString() };
+        workshop_option_id: option.id, curriculum_subject_id: existing?.curriculum_subject_id ?? null, source: "manual", updated_at: new Date().toISOString() };
       const query = workshopForm.existingId
         ? supabase.from("user_workshop_history").update(payload).eq("id", workshopForm.existingId)
         : supabase.from("user_workshop_history").insert(payload);
       const { data, error: saveError } = await query.select("id,raw_name,status,grade,passed_at,workshop_option_id,curriculum_subject_id").single();
       if (saveError || !data) throw new Error("No pudimos guardar el taller. Revisá si ya está vinculado a otro requisito.");
       setWorkshopHistory(current => [...current.filter(row => row.id !== data.id), data as WorkshopHistory]);
-      setRegisteringSlotId(null);
+      setWorkshopModalOpen(false);
       setWorkshopForm({ existingId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" });
       router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos guardar el taller."); }
@@ -286,8 +286,9 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       const { data: aliases, error: aliasError } = await supabase.from("curriculum_subject_aliases")
         .select("curriculum_subject_id,alias,verified").in("curriculum_subject_id", visible.map(row => row.id)).eq("verified", true);
       if (aliasError) throw new Error("No pudimos verificar los alias del plan. Recargá la página e intentá de nuevo.");
-      setAnalyticMatches(matchAnalyticSubjects(parsed.subjects, visible.map(row => ({ id: row.id, nombre: row.officialName })),
-        (aliases ?? []).map(row => ({ subject_id: row.curriculum_subject_id, alias: row.alias, verified: row.verified }))));
+      setAnalyticMatches(classifyPlasticAnalyticRows(matchAnalyticSubjects(parsed.subjects, visible.map(row => ({ id: row.id, nombre: row.officialName, requirementKind: row.requirementKind })),
+        (aliases ?? []).map(row => ({ subject_id: row.curriculum_subject_id, alias: row.alias, verified: row.verified })),
+        { curriculumId: active.curriculumId, orientationId: active.orientationId }), workshopOptions, active.orientationId));
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos leer el analítico."); }
     finally { setBusy(false); }
   }
@@ -301,7 +302,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
     const { error: saveError } = await supabase.rpc("save_enrollment_analytic_review", {
       p_enrollment_id: active.id,
       p_subjects: selected.map(row => ({ subject_id: String(row.subjectId), raw_name: row.rawName, match_kind: row.manualOverride ? "MANUAL" : row.kind, source_reference: analyticImportId, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null })),
-      p_workshops: workshops.map(row => ({ raw_name: row.rawName, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null })),
+      p_workshops: workshops.map(row => ({ raw_name: row.rawName, workshop_option_id: row.workshopOptionId ?? null, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null })),
       p_pending: pending.map(row => ({ raw_name: row.rawName, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null, match_kind: row.kind, suggested_subject_id: row.candidateId ?? row.candidateIds?.[0] ?? null, record_type: isNamedWorkshopActivity(row.rawName) ? "workshop" : "subject", resolution_status: row.ignored ? "ignored" : "pending", source_reference: analyticImportId })),
     });
     if (saveError) setError("No pudimos guardar las materias del analítico.");
@@ -351,9 +352,31 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       </div><button type="button" disabled={busy || !ready} onClick={() => void createEnrollment()} className="button-secondary mt-4">Agregar trayectoria</button>
     </section>}
     {active && activePlan?.catalog_kind === "curriculum_subjects" && <section><p className="eyebrow">{activeProgram?.name} · {activeOrientation?.name} · {activePlan.display_name}</p><h2 className="mt-2 font-display text-2xl font-black">Materias de mi plan</h2><p className="mt-2 text-sm text-ink/65">{progress?.completed} de {progress?.total} requisitos obligatorios conocidos aprobados. Los talleres y seminarios a elección se cuentan por separado; este número no es el porcentaje total del título.</p>
-      <div className="card mt-4"><h3 className="font-bold">Talleres Complementarios</h3><p className="mt-1 text-sm">4 Talleres Complementarios a elección que no sean de tu orientación básica. Los lugares del plan aparecen en su año correspondiente.</p>{workshopStorageReady ? <p className="mt-2 text-sm">{workshopCount} de 4 orientaciones verificadas para el grupo de requisitos.</p> : <p className="mt-2 text-sm">El historial de talleres estará disponible cuando se aplique la actualización académica.</p>}
-        {(workshopHistory.some(row => !row.curriculum_subject_id || !linkedWorkshops.has(row.curriculum_subject_id)) || openWorkshopPending.length > 0) && <section className="mt-4 border-t border-ink/20 pt-3"><h4 className="font-bold">Talleres detectados / pendientes de vincular</h4><div className="mt-2 space-y-2">{workshopHistory.filter(row => !row.curriculum_subject_id || !linkedWorkshops.has(row.curriculum_subject_id)).map(row => <p key={row.id} className="text-sm"><strong>{row.raw_name}</strong> · {academicStatusLabel(row.status)}{academicHistoryDetail({ grade: row.grade, date: row.passed_at }) && <span> · {academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</span>}<span className="block text-ink/65">Pendiente de vincular con un requisito del plan.</span></p>)}{openWorkshopPending.map(row => <p key={row.id} className="text-sm"><strong>{row.raw_name}</strong> · {academicStatusLabel(row.status)}<span className="block text-ink/65">Pendiente de vincular con un requisito del plan.</span></p>)}</div><Link href="/dashboard/revisar-recorrido" className="mt-3 inline-block text-sm font-bold underline">Revisar registros pendientes</Link></section>}
+      <div className="card mt-4">
+        <h3 className="font-display text-xl font-bold">Talleres complementarios</h3>
+        {workshopStorageReady ? <p className="mt-1 text-sm font-semibold">{Math.min(4, workshopCount)} de 4 realizados · Falta {Math.max(0, 4 - workshopCount)}</p> : <p className="mt-1 text-sm">El historial de talleres todavía no está disponible.</p>}
+        <div className="mt-3 space-y-2">{workshopHistory.map(row => {
+          const option = workshopOptions.find(item => item.id === row.workshop_option_id);
+          const counts = row.status === "passed" && option?.verification_status === "verified" && option.orientation_id !== active.orientationId;
+          return <div key={row.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-ink/15 pt-2 text-sm">
+            <p className="min-w-0 [overflow-wrap:anywhere]"><span aria-hidden>{counts ? "✓ " : "○ "}</span><strong>{option?.academic_name ?? row.raw_name}</strong>{option && row.raw_name !== option.academic_name && <span className="block text-xs text-ink/60">{row.raw_name}</span>}{!counts && <span className="block text-xs text-ink/60">{option?.orientation_id === active.orientationId ? "Es tu orientación básica; no suma al requisito." : option ? academicStatusLabel(row.status) : "Pendiente de verificar orientación; todavía no suma."}</span>}{academicHistoryDetail({ grade: row.grade, date: row.passed_at }) && <span className="block text-xs text-ink/60">{academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</span>}</p>
+            {option && option.orientation_id !== active.orientationId && <button type="button" className="button-secondary" onClick={() => { setWorkshopForm({ existingId: row.id, rawName: row.raw_name, optionId: option.id, status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" }); setWorkshopModalOpen(true); }}>Editar</button>}
+          </div>;
+        })}{openWorkshopPending.map(row => <p key={row.id} className="border-t border-ink/15 pt-2 text-sm">○ {row.raw_name} <span className="block text-xs text-ink/60">Pendiente de verificar orientación.</span></p>)}</div>
+        <button type="button" className="button-secondary mt-4" disabled={!workshopStorageReady || !verifiedWorkshopOptions.length} onClick={() => { setWorkshopForm({ existingId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" }); setWorkshopModalOpen(true); }}>Agregar taller</button>
       </div>
+      {workshopModalOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setWorkshopModalOpen(false); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="workshop-dialog-title" onKeyDown={event => { if (event.key === "Escape" && !busy) setWorkshopModalOpen(false); }} className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-2 border-ink bg-white p-5 shadow-[5px_5px_0_0_#000] sm:rounded-2xl">
+          <h3 id="workshop-dialog-title" className="font-display text-xl font-black">{workshopForm.existingId ? "Editar taller" : "Agregar taller"}</h3>
+          <div className="mt-4 grid gap-3">
+            <label className="text-sm font-bold">Taller<select className="input mt-1" value={workshopForm.optionId} disabled={Boolean(workshopForm.existingId)} onChange={event => setWorkshopForm(current => ({ ...current, optionId: event.target.value }))}><option value="">Elegí un taller</option>{verifiedWorkshopOptions.map(option => <option key={option.id} value={option.id}>{option.academic_name}</option>)}</select></label>
+            <label className="text-sm font-bold">Estado<select className="input mt-1" value={workshopForm.status} onChange={event => setWorkshopForm(current => ({ ...current, status: event.target.value as Status }))}><option value="passed">Aprobada</option><option value="regular">Cursada aprobada</option><option value="in_progress">Cursando</option><option value="pending">Sin completar</option></select></label>
+            <label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={workshopForm.grade} onChange={event => setWorkshopForm(current => ({ ...current, grade: event.target.value }))} /></label>
+            <label className="text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={workshopForm.date} onChange={event => setWorkshopForm(current => ({ ...current, date: event.target.value }))} /></label>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy || !workshopForm.optionId} className="button-primary" onClick={() => void saveWorkshop()}>{busy ? "Guardando…" : "Guardar"}</button><button type="button" disabled={busy} className="button-secondary" onClick={() => setWorkshopModalOpen(false)}>Cancelar</button></div>
+        </section>
+      </div>}
       {openSubjectPending.length > 0 && <section className="card mt-4">
         <h3 className="font-bold">Pendientes de confirmar · {openSubjectPending.length}</h3>
         <p className="mt-1 text-sm text-ink/65">Podés revisarlos cuando quieras. Todavía no afectan el progreso ni las correlatividades.</p>
@@ -368,29 +391,22 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       {ignoredPending.length > 0 && <details className="card mt-4" open={showIgnored} onToggle={event => setShowIgnored(event.currentTarget.open)}><summary className="cursor-pointer font-bold">Ver registros ignorados · {ignoredPending.length}</summary><div className="mt-3 space-y-3">{ignoredPending.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-ink/20 pt-2"><span className="[overflow-wrap:anywhere]">{row.raw_name}</span><button type="button" disabled={busy} className="button-secondary" onClick={() => void changePendingResolution(row.id, "pending")}>Restaurar a pendientes</button></div>)}</div></details>}
       <div className="card mt-5"><h3 className="font-display text-xl font-black">Subir analítico</h3><p className="mt-1 text-sm text-ink/65">El documento se usa para buscar materias dentro de esta trayectoria. Confirmá título, orientación y plan antes de guardar.</p><input className="input mt-3" type="file" accept=".pdf,application/pdf" onChange={event => setAnalyticFile(event.target.files?.[0] ?? null)} /><button type="button" disabled={busy || !analyticFile} onClick={() => void parseAnalytic()} className="button-secondary mt-3">Revisar materias</button>
         {analyticSummary && <div className="mt-4 text-sm"><p>Analítico procesado: {analyticSummary.detected} materias detectadas. {analyticMatches.filter(row => row.subjectId && !row.ignored).length} reconocidas y {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} necesitan confirmación.</p><p className="mt-1 text-ink/65">Podés guardar las reconocidas y revisar las demás después.</p>{analyticSummary.warnings.map(warning => <p key={warning} className="mt-2 text-amber-900">{warning}</p>)}</div>}
-        {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><label className="mb-3 flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> <span>Confirmo que este analítico corresponde a {activeProgram?.name}, orientación {activeOrientation?.name}, {plans.find(row => row.id === active.curriculumId)?.display_name}.</span></label><div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar y ver mi recorrido</button><a href="#revisar-analitico" className="button-secondary">Revisar las {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} ahora</a><Link href="/dashboard/recorrido" className="button-secondary">Volver a mi recorrido sin guardar</Link></div><div id="revisar-analitico"><h4 className="font-bold">Revisión del analítico</h4><p className="text-sm text-ink/65">No encontramos una coincidencia segura para algunas filas. Podés revisarlas después; todavía no afectan tu recorrido.</p>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs text-ink/65">{row.kind === "EXACT" || row.kind === "ALIAS" ? "Reconocida" : "Necesita confirmación"}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value), manualOverride: true } : item))}><option value="">Dejar pendiente de confirmar</option>{needsWorkshopOrientationReview(row.rawName) && workshopStorageReady && <option value="__workshop">Guardar taller real para revisión</option>}<option value="__ignore">Ignorar fila</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}</div></div>}
+        {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><label className="mb-3 flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> <span>Confirmo que este analítico corresponde a {activeProgram?.name}, orientación {activeOrientation?.name}, {plans.find(plan => plan.id === active.curriculumId)?.display_name}.</span></label><div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar y ver mi recorrido</button><a href="#revisar-analitico" className="button-secondary">Revisar las {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} ahora</a><Link href="/dashboard/recorrido" className="button-secondary">Volver a mi recorrido sin guardar</Link></div><div id="revisar-analitico"><h4 className="font-bold">Revisión del analítico</h4><p className="text-sm text-ink/65">No encontramos una coincidencia segura para algunas filas. Podés revisarlas después; todavía no afectan tu recorrido.</p>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs text-ink/65">{row.workshopSelected ? "Taller real" : ["EXACT", "ALIAS", "CONTEXT"].includes(row.kind) ? "Reconocida" : "Necesita confirmación"}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", workshopOptionId: event.target.value === "__workshop" ? item.workshopOptionId : undefined, ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value), manualOverride: true } : item))}><option value="">Dejar pendiente de confirmar</option>{needsWorkshopOrientationReview(row.rawName) && workshopStorageReady && <option value="__workshop">Guardar taller real</option>}<option value="__ignore">Ignorar fila</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}</div></div>}
       </div>
       <div className="mt-5 flex flex-wrap gap-2" aria-label="Filtrar materias">{([ ["all", "Todas"], ["pending", "Pendientes"], ["in_progress", "Cursando"], ["regular", "Cursada aprobada"], ["passed", "Aprobadas"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className="filter-chip">{label}</button>)}</div>
-      <div className="mt-5 space-y-7">{Array.from(new Set(items.map(item => item.yearLevel))).sort((a, b) => (a ?? 0) - (b ?? 0)).map(year => <section key={year}><h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3><div className="space-y-3">{items.filter(item => {
-        const linked = linkedWorkshops.get(item.id);
-        const status = planVisible.some(row => row.id === item.id && isComplementaryWorkshopSlot(row)) ? linked?.status ?? "pending" : item.status;
-        return item.yearLevel === year && (filter === "all" || status === filter);
-      }).map(item => {
+      <div className="mt-5 space-y-7">{Array.from(new Set(items.map(item => item.yearLevel))).sort((a, b) => (a ?? 0) - (b ?? 0)).map(year => <section key={year}><h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3><div className="space-y-3">{items.filter(item => item.yearLevel === year && (filter === "all" || item.status === filter)).map(item => {
         const subject = planVisible.find(row => row.id === item.subjectId)!;
-        const slot = isComplementaryWorkshopSlot(subject);
-        const linked = slot ? linkedWorkshops.get(item.id) : undefined;
-        const status = slot ? linked?.status ?? "pending" : item.status;
-        const checked = editingSubjectId === item.id && !slot ? edit.status !== "pending" : status !== "pending";
+        const status = item.status;
+        const checked = status !== "pending";
         return <article key={item.id} className={`card relative min-w-0 overflow-hidden ${status === "passed" ? "border-ink bg-yellow-100" : ""}`}>
           {status === "passed" && <span aria-hidden className="marker-fluo" />}
           <div className="relative z-[1] flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-xs text-ink/55">{subject.officialCode ?? "Sin código"}</p>
-            <div className="flex items-start gap-3">{!slot && <input aria-label={`Marcar ${item.displayName}`} className="mt-1 h-5 w-5 shrink-0 accent-ink" type="checkbox" checked={checked} onChange={event => { setEditingSubjectId(item.id); setEdit({ status: event.target.checked ? "passed" : "pending", grade: event.target.checked && item.grade != null ? String(item.grade) : "", date: event.target.checked ? item.date ?? "" : "" }); }} />}
-              <div><h4 className="font-bold [overflow-wrap:anywhere]">{item.displayName}</h4><p className="mt-1 text-sm font-semibold">{slot && !linked ? "Sin completar" : academicStatusLabel(status)}</p>
-                {slot && linked ? <><p className="text-sm">Taller realizado: {linked.raw_name}</p>{academicHistoryDetail({ grade: linked.grade, date: linked.passed_at }) && <p className="text-sm text-ink/65">{academicHistoryDetail({ grade: linked.grade, date: linked.passed_at })}</p>}</> : !slot && academicHistoryDetail(item) && <p className="text-sm text-ink/65">{academicHistoryDetail(item)}</p>}
-                {!slot && subject.reviewStatus === "manual_review" && <p className="mt-1 text-xs text-ink/60">Correlatividades pendientes de revisión: consultar el plan oficial.</p>}</div></div></div>
-            <div className="flex flex-wrap gap-2">{slot ? <button type="button" className="button-secondary" onClick={() => { setRegisteringSlotId(item.id); setWorkshopForm({ existingId: linked?.id ?? "", rawName: linked?.raw_name ?? "", optionId: linked?.workshop_option_id ?? "", status: linked?.status ?? "passed", grade: linked?.grade == null ? "" : String(linked.grade), date: linked?.passed_at ?? "" }); }}> {linked ? "Editar taller" : "Registrar taller"}</button> : <><button type="button" className="button-secondary" onClick={() => { setEditingSubjectId(item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); }}>Editar</button><Link className="button-secondary" href={`/dashboard/agenda?subject=${encodeURIComponent(item.id)}`}>Agregar a Mi agenda</Link></>}</div></div>
-          {!slot && editingSubjectId === item.id && <div className="mt-4 grid gap-3 border-t border-ink/20 pt-4 sm:grid-cols-3"><label className="text-sm font-bold">Estado<select className="input mt-1" value={edit.status} onChange={event => setEdit(current => ({ ...current, status: event.target.value as Status }))}><option value="pending">Sin cursar</option><option value="in_progress">Cursando</option><option value="regular">Cursada aprobada</option><option value="passed">Aprobada</option></select></label><label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={edit.grade} onChange={event => setEdit(current => ({ ...current, grade: event.target.value }))} /></label><label className="text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={edit.date} onChange={event => setEdit(current => ({ ...current, date: event.target.value }))} /></label><div className="flex flex-wrap gap-2 sm:col-span-3"><button type="button" disabled={busy} onClick={() => void saveStatus(item.id)} className="button-primary">{busy ? "Guardando…" : "Guardar"}</button><button type="button" disabled={busy} onClick={() => setEditingSubjectId(null)} className="button-secondary">Cancelar</button></div></div>}
-          {slot && registeringSlotId === item.id && <div className="mt-4 grid gap-3 border-t border-ink/20 pt-4 sm:grid-cols-2"><label className="text-sm font-bold">Taller ya registrado<select className="input mt-1" value={workshopForm.existingId} onChange={event => { const found = workshopHistory.find(row => row.id === event.target.value); setWorkshopForm(current => ({ ...current, existingId: found?.id ?? "", rawName: found?.raw_name ?? "", optionId: found?.workshop_option_id ?? "", status: found?.status ?? "passed", grade: found?.grade == null ? "" : String(found.grade), date: found?.passed_at ?? "" })); }}><option value="">Registrar uno nuevo</option>{workshopHistory.filter(row => !row.curriculum_subject_id || row.curriculum_subject_id === item.id).map(row => <option key={row.id} value={row.id}>{row.raw_name}</option>)}</select></label><label className="text-sm font-bold">Nombre real del taller<input className="input mt-1" value={workshopForm.rawName} onChange={event => setWorkshopForm(current => ({ ...current, rawName: event.target.value }))} /></label><label className="text-sm font-bold">Opción verificada<select className="input mt-1" value={workshopForm.optionId} onChange={event => setWorkshopForm(current => ({ ...current, optionId: event.target.value }))}><option value="">Sin verificar: dejar pendiente de vincular</option>{verifiedWorkshopOptions.map(option => <option key={option.id} value={option.id}>{option.academic_name}</option>)}</select></label><label className="text-sm font-bold">Estado<select className="input mt-1" value={workshopForm.status} onChange={event => setWorkshopForm(current => ({ ...current, status: event.target.value as Status }))}><option value="pending">Sin completar</option><option value="in_progress">Cursando</option><option value="regular">Cursada aprobada</option><option value="passed">Aprobada</option></select></label><label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={workshopForm.grade} onChange={event => setWorkshopForm(current => ({ ...current, grade: event.target.value }))} /></label><label className="text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={workshopForm.date} onChange={event => setWorkshopForm(current => ({ ...current, date: event.target.value }))} /></label><div className="flex gap-2 sm:col-span-2"><button type="button" disabled={busy} className="button-primary" onClick={() => void saveWorkshop(item.id)}>Guardar taller</button><button type="button" className="button-secondary" onClick={() => setRegisteringSlotId(null)}>Cancelar</button></div></div>}
+            <div className="flex items-start gap-3"><input aria-label={`Marcar ${item.displayName}`} className="mt-1 h-5 w-5 shrink-0 accent-ink" type="checkbox" checked={checked} disabled={busy} onChange={event => void saveStatus(item.id, { status: event.target.checked ? "passed" : "pending", grade: event.target.checked && item.grade != null ? String(item.grade) : "", date: event.target.checked ? item.date ?? "" : "" })} />
+              <div><h4 className="font-bold [overflow-wrap:anywhere]">{item.displayName}</h4><p className="mt-1 text-sm font-semibold">{academicStatusLabel(status)}</p>
+                {academicHistoryDetail(item) && <p className="text-sm text-ink/65">{academicHistoryDetail(item)}</p>}
+                {subject.reviewStatus === "manual_review" && <p className="mt-1 text-xs text-ink/60">Correlatividades pendientes de revisión: consultar el plan oficial.</p>}</div></div></div>
+            <div className="flex flex-wrap gap-2"><button type="button" className="button-secondary" aria-expanded={editingSubjectId === item.id} onClick={() => { setEditingSubjectId(current => current === item.id ? null : item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); }}>{editingSubjectId === item.id ? "Cerrar edición" : "Editar"}</button><Link className="button-secondary" href={`/dashboard/agenda?subject=${encodeURIComponent(item.id)}`}>Agregar a Mi agenda</Link></div></div>
+          {editingSubjectId === item.id && <div className="relative z-[1] mt-4 grid min-w-0 gap-3 border-t border-ink/20 bg-white/90 pt-4 sm:grid-cols-3"><label className="min-w-0 text-sm font-bold">Estado<select className="input mt-1" value={edit.status} onChange={event => setEdit(current => ({ ...current, status: event.target.value as Status }))}><option value="pending">Sin cursar</option><option value="in_progress">Cursando</option><option value="regular">Cursada aprobada</option><option value="passed">Aprobada</option></select></label><label className="min-w-0 text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={edit.grade} onChange={event => setEdit(current => ({ ...current, grade: event.target.value }))} /></label><label className="min-w-0 text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={edit.date} onChange={event => setEdit(current => ({ ...current, date: event.target.value }))} /></label><div className="flex flex-wrap gap-2 sm:col-span-3"><button type="button" disabled={busy} onClick={() => void saveStatus(item.id)} className="button-primary">{busy ? "Guardando…" : "Guardar cambios"}</button><button type="button" disabled={busy} onClick={() => setEditingSubjectId(null)} className="button-secondary">Cancelar</button></div></div>}
         </article>;
       })}</div></section>)}</div>
     </section>}

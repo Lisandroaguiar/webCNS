@@ -1,6 +1,6 @@
 import { detectCurriculum, detectDegree, type CurriculumValue, type DegreeValue } from "@/lib/academic/curriculum";
 
-export type ParsedAnalyticSubject = { rawName: string; grade?: number; passedAt?: string; status?: "passed" | "regular" | "pending" };
+export type ParsedAnalyticSubject = { rawName: string; grade?: number; passedAt?: string; status?: "passed" | "regular" | "pending"; section?: "elective" };
 export type ParsedAnalytic = {
   detectedDegree?: DegreeValue; detectedCurriculum?: CurriculumValue;
   detectedProgramFamily?: "Artes Plásticas" | "Diseño Multimedial";
@@ -43,12 +43,14 @@ export function parseAnalyticDocument(text: string): ParsedAnalytic {
   const warnings: string[] = [];
   let pending = "";
   let section: ParsedAnalyticSubject["status"];
+  let electiveSection = false;
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/\s+/g, " ").trim();
     if (!line) continue;
-    if (/^(?:asignaturas\s+)?(?:no aprobadas|desaprobadas|pendientes)\s*:?$/i.test(line)) { section = "pending"; pending = ""; continue; }
-    if (/^(?:asignaturas\s+)?aprobadas\s*:?$/i.test(line)) { section = "passed"; pending = ""; continue; }
-    if (/^(?:asignaturas\s+)?regularizadas\s*:?$/i.test(line)) { section = "regular"; pending = ""; continue; }
+    if (/^cr[eé]ditos\s*\/\s*optativas\s*:?$/i.test(line)) { electiveSection = true; pending = ""; continue; }
+    if (/^(?:asignaturas\s+)?(?:no aprobadas|desaprobadas|pendientes)\s*:?$/i.test(line)) { section = "pending"; electiveSection = false; pending = ""; continue; }
+    if (/^(?:asignaturas\s+)?aprobadas\s*:?$/i.test(line)) { section = "passed"; electiveSection = false; pending = ""; continue; }
+    if (/^(?:asignaturas\s+)?regularizadas\s*:?$/i.test(line)) { section = "regular"; electiveSection = false; pending = ""; continue; }
     // Headers, footers and summaries must never become part of a subject.
     if (/^(?:asignatura|materia)(?:\s+(?:c[oó]digo|nota|fecha|acta|estado|plan))*$/i.test(line) ||
       /^(?:nota\b|fecha\b|acta\b|página\b|pagina\b|total\b|promedio\b|porcentaje\b|observaciones\b|facultad\b|universidad\b|profesorado\b|licenciatura\b|reporte\b|apellido\b|dni\b|plan\b|estado\b|otro tipo\b|lugar\b|código\b|no cotejado\b|https?:)/i.test(line)) { pending = ""; continue; }
@@ -67,7 +69,7 @@ export function parseAnalyticDocument(text: string): ParsedAnalytic {
     const passedAt = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : match[3];
     const explicit = match[4]?.toLowerCase();
     const status = explicit ? (/^(regular)/.test(explicit) ? "regular" : /^(pendiente|desaprob|libre)/.test(explicit) ? "pending" : "passed") : section ?? (grade >= 4 ? "passed" : "pending");
-    const item = { rawName, grade, passedAt, status } satisfies ParsedAnalyticSubject;
+    const item = { rawName, grade, passedAt, status, ...(electiveSection ? { section: "elective" as const } : {}) } satisfies ParsedAnalyticSubject;
     const existing = subjects.find(subject => normalizeSubjectName(subject.rawName) === normalizeSubjectName(rawName));
     if (!existing) subjects.push(item);
     else if (existing.grade !== grade || existing.passedAt !== passedAt || existing.status !== status) warnings.push(`Hay más de un resultado para ${rawName}. Revisá cuál corresponde antes de guardar.`);

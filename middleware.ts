@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { safeNextPath } from "@/lib/auth/redirect";
 
 export async function middleware(request: NextRequest) {
   const startedAt = performance.now();
@@ -29,7 +30,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
   if (user && ["/login", "/registro"].includes(request.nextUrl.pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL(safeNextPath(request.nextUrl.searchParams.get("next")), request.url));
   }
   return response;
 }

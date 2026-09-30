@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import type { Route } from "next";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import { BrandMark } from "@/components/brand/brand-mark";
 import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
+import { safeNextPath } from "@/lib/auth/redirect";
+
+function loginErrorMessage(message: string) {
+  if (/invalid login credentials|invalid credentials/i.test(message)) return "Email o contraseña incorrectos.";
+  if (/email not confirmed/i.test(message)) return "Confirmá tu email antes de iniciar sesión.";
+  if (/rate limit|too many requests/i.test(message)) return "Hubo demasiados intentos. Esperá unos minutos y probá de nuevo.";
+  return "No pudimos iniciar sesión. Intentá nuevamente.";
+}
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("error") === "google_auth") {
@@ -18,14 +23,28 @@ export default function LoginPage() {
   }, []);
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setError("");
-    const { error } = await createClient().auth.signInWithPassword({ email, password });
-    if (error) setError(error.message); else {
+    try {
+      const supabase = createClient();
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) {
+        if (process.env.NODE_ENV === "development") console.error("Password login failed:", authError.code ?? "unknown");
+        setError(loginErrorMessage(authError.message));
+        return;
+      }
+      const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+      if (sessionError || !user) {
+        if (process.env.NODE_ENV === "development") console.error("Password login session verification failed:", sessionError?.code ?? "missing_user");
+        setError("No pudimos confirmar tu sesión. Intentá nuevamente.");
+        return;
+      }
       const next = new URLSearchParams(window.location.search).get("next");
-      const destination = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
-      router.replace(destination as Route);
-      router.refresh();
+      window.location.assign(safeNextPath(next));
+    } catch (caught) {
+      if (process.env.NODE_ENV === "development") console.error("Password login request failed:", caught instanceof Error ? caught.name : "unknown");
+      setError("No pudimos iniciar sesión. Revisá tu conexión e intentá nuevamente.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
   return <section className="w-full max-w-md">
     <BrandMark href="/" light />

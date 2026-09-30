@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import { authCallbackUrl } from "@/lib/auth/redirect";
 
 export function GoogleSignInButton() {
   const [loading, setLoading] = useState(false);
@@ -11,14 +12,10 @@ export function GoogleSignInButton() {
     setLoading(true);
     setError("");
     const requestedNext = new URLSearchParams(window.location.search).get("next");
-    const next = requestedNext?.startsWith("/") && !requestedNext.startsWith("//") && !requestedNext.includes("\\")
-      ? requestedNext
-      : "/dashboard";
-    const redirectTo = new URL("/auth/callback", window.location.origin);
-    redirectTo.searchParams.set("next", next);
+    const redirectTo = authCallbackUrl(window.location.origin, requestedNext);
     const { error: authError } = await createClient().auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: redirectTo.toString() },
+      options: { redirectTo },
     });
     if (authError) {
       setError("No pudimos iniciar sesión con Google. Intentá de nuevo.");

@@ -1,0 +1,24 @@
+INFORME E2E — EDICIÓN DE MATERIAS
+Fecha: 2026-09-29
+Entorno probado: http://localhost:3200 (código local, sin publicar)
+
+RESULTADO: INCOMPLETO / BLOQUEADO POR AUTENTICACIÓN LOCAL
+
+Casos ejecutados:
+1. Apertura de /dashboard/recorrido sin sesión local: PASS. Redirige a /login?next=%2Fdashboard%2Frecorrido.
+2. Inicio de sesión con la cuenta de prueba previamente autorizada mediante email y contraseña: FAIL. El formulario vuelve a quedar en login; no se obtiene sesión local ni aparece un mensaje de error visible.
+3. Inicio con Google: FAIL para este E2E local. El flujo terminó en https://web-cns.vercel.app en vez de regresar a http://localhost:3200, por lo que no habilitó la sesión en la versión local.
+4. Edición de una materia, guardado, recarga y comprobación de persistencia: NO EJECUTADO por falta de sesión local.
+5. Revisión visual de las tarjetas autenticadas en móvil: NO EJECUTADO por falta de sesión local.
+
+Comprobaciones técnicas complementarias:
+- npm.cmd test: PASS; 24 archivos y 110 pruebas aprobadas.
+- npm.cmd run build: PASS; compilación y validación de tipos completadas.
+- git diff --check: PASS; sin errores de formato del diff.
+
+Alcance y datos:
+- No se modificaron materias ni notas de usuarios durante este intento.
+- No se publicó esta versión en producción.
+- La interfaz y la persistencia de la nueva edición siguen pendientes de validación E2E autenticada.
+
+Para completar el E2E hace falta restablecer el retorno de autenticación a localhost:3200 o disponer de una sesión local válida. Luego se debe editar una materia de prueba, guardar, recargar, verificar el dato y restaurar su valor previo.
