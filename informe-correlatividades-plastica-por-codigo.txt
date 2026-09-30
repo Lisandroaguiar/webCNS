@@ -1,0 +1,81 @@
+AUDITORÍA LOCAL — CORRELATIVIDADES DE ARTES PLÁSTICAS POR CÓDIGO
+Fuente: los dos PDFs oficiales entregados por el usuario. No contiene datos personales.
+Reglas transcritas: 193 (Plan 2006: 84; Plan 2023: 109).
+VERIFIED_BY_CODE: 125
+CODE_GROUP: 11
+AMBIGUOUS_CODE: 9
+MISSING_CODE: 2
+MANUAL_REVIEW: 46
+
+Estos conteos son esperados contra el catálogo local; confirmar la auditoría SQL tras aplicar la migración remota.
+Los códigos repetidos no se enlazan al primer slot. P0083 se vincula al grupo de talleres; 715 queda sin coincidencia.
+Algunas celdas densas del póster 2006 están marcadas MANUAL_REVIEW para cotejo adicional; no se usó fuzzy matching.
+
+AMBIGUOUS_CODE | plastica-2006 | P0033 <- P0003 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=1;columna=enroll-passed
+CODE_GROUP | plastica-2006 | P0083 <- P0001 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=2;columna=enroll-passed
+CODE_GROUP | plastica-2006 | P0083 <- H0003 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=2;columna=enroll-passed
+AMBIGUOUS_CODE | plastica-2006 | P0003 <- P0003 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=4;columna=enroll-passed
+MISSING_CODE | plastica-2006 | H0001 <- 715 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=5;columna=enroll-regular
+MISSING_CODE | plastica-2006 | H0001 <- 715 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=5;columna=pass-passed
+AMBIGUOUS_CODE | plastica-2006 | P0034 <- P0003 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=8;columna=enroll-passed
+AMBIGUOUS_CODE | plastica-2006 | P0004 <- P0003 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=10;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0051 <- H0023 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=13;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | H0051 <- H0015 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=13;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0051 <- H0006 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=13;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0051 <- P0033 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=13;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0051 <- H0015 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=13;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0051 <- H0006 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=13;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0051 <- P0033 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=13;columna=pass-passed
+AMBIGUOUS_CODE | plastica-2006 | P0057 <- H0006 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=15;columna=enroll-passed
+AMBIGUOUS_CODE | plastica-2006 | P0057 <- P0083 x3 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=15;columna=enroll-passed
+AMBIGUOUS_CODE | plastica-2006 | P0057 <- P0057 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=15;columna=enroll-passed
+AMBIGUOUS_CODE | plastica-2006 | P0057 <- H0040 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=15;columna=enroll-passed
+CODE_GROUP | plastica-2006 | P0058 <- P0083 x3 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=16;columna=enroll-passed
+AMBIGUOUS_CODE | plastica-2006 | P0058 <- P0057 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=16;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0050 <- H0051 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=18;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | H0050 <- H0023 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=18;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0050 <- P0034 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=18;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0016 <- H0023 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=19;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | H0016 <- H0040 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=19;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0016 <- H0023 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=19;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0016 <- H0006 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=19;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0016 <- H0023 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=19;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0030 <- H0016 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=20;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | H0030 <- H0023 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=20;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0030 <- H0001 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=20;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0031 <- H0007 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=21;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | H0031 <- P0034 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=21;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0031 <- H0040 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=21;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0031 <- H0015 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=21;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- H0030 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0004 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0035 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0057 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0058 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0004 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0035 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0057 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- P0058 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | P0049 <- H0030 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=22;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- H0050 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | H0032 <- H0031 x1 | enroll/regular | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=enroll-regular
+MANUAL_REVIEW | plastica-2006 | H0032 <- P0004 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- H0051 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- P0035 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- P0004 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- H0051 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- P0035 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- H0050 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | H0032 <- H0031 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=23;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | O0010 <- P0034 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=25;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | O0010 <- H0040 x1 | enroll/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=25;columna=enroll-passed
+MANUAL_REVIEW | plastica-2006 | O0010 <- P0034 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=25;columna=pass-passed
+MANUAL_REVIEW | plastica-2006 | O0010 <- H0040 x1 | pass/passed | PROGRAMA LIC Y PROF PLASTICA 2006_modif 2025.pdf#fila=25;columna=pass-passed
+CODE_GROUP | plastica-2023 | P0083 <- P0001 x1 | enroll/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=2;columna=enroll-passed
+CODE_GROUP | plastica-2023 | P0083 <- H0003 x1 | enroll/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=2;columna=enroll-passed
+CODE_GROUP | plastica-2023 | P0083 <- P0001 x1 | pass/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=2;columna=pass-passed
+CODE_GROUP | plastica-2023 | P0083 <- H0003 x1 | pass/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=2;columna=pass-passed
+CODE_GROUP | plastica-2023 | P0057 <- P0083 x1 | enroll/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=14;columna=enroll-passed
+CODE_GROUP | plastica-2023 | P0057 <- P0083 x1 | pass/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=14;columna=pass-passed
+CODE_GROUP | plastica-2023 | P0058 <- P0083 x1 | enroll/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=15;columna=enroll-passed
+CODE_GROUP | plastica-2023 | P0058 <- P0083 x1 | pass/passed | PLAN DE ESTUDIOS_Prof y Lic AV 2023.pdf#fila=15;columna=pass-passed

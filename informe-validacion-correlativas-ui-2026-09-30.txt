@@ -1,0 +1,30 @@
+VALIDACIÓN LOCAL — CORRELATIVIDADES POR CÓDIGO Y CARDS DE RECORRIDO
+Fecha: 2026-09-30
+
+Correlatividades de Artes Plásticas
+- Regla de identidad: curriculum_id + official_code, acotada por título y orientación aplicables.
+- H0037 -> H0003: verificado por código, sin depender del nombre.
+- P0083: se vincula al grupo de Talleres Complementarios; tres apariciones son required_count=3.
+- Códigos duplicados fuera de un alcance inequívoco y filas dudosas: revisión explícita, sin fuzzy matching.
+- 193 reglas transcritas de ambos planes. Auditoría local esperada: 125 VERIFIED_BY_CODE, 11 CODE_GROUP, 9 AMBIGUOUS_CODE, 2 MISSING_CODE y 46 MANUAL_REVIEW.
+- La migración SQL se aplicó en Supabase de producción el 2026-09-30. El editor informó Success. No rows returned. La auditoría remota confirmó 193 reglas con los cinco conteos previstos.
+
+Recorrido
+- Multimedia y Plástica usan la misma card compacta: nombre, estado, nota opcional y apertura.
+- El detalle abre un panel; estado y nota quedan a primer nivel, fecha en “Más información”.
+- Talleres complementarios muestran resumen y control “Gestionar talleres”.
+
+E2E autenticado en localhost:3200 con Supabase remoto
+- Se creó una trayectoria de prueba inactiva: Licenciatura en Artes Plásticas, Plan 2023, Pintura.
+- Arte Contemporáneo: estado Aprobada, nota 8, fecha ficticia 17/05/2025.
+- Guardar -> card compacta Aprobada · Nota 8 -> recargar -> volver a seleccionar la trayectoria -> mismo estado y nota: PASS.
+- La trayectoria de prueba se eliminó mediante borrado recuperable. Las trayectorias originales quedaron activas/integras.
+- Anchos 320, 360, 390, 430 px: card de una línea 68 px, sin desborde horizontal. Panel de edición 320 px: guardar visible.
+- Capturas 320 px y 390 px inspeccionadas en navegador; no se guardaron archivos de imagen.
+
+Comprobaciones
+- npm.cmd test: PASS, 121/121.
+- npm.cmd run build: PASS.
+- git diff --check: PASS.
+
+Verificación remota: H0037 -> H0003 quedó VERIFIED_BY_CODE en ambos planes; P0058 -> P0083 x3 quedó CODE_GROUP. P0057 -> P0083 x3 permanece AMBIGUOUS_CODE por código de destino duplicado, sin enlace arbitrario.

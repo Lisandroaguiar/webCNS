@@ -23,10 +23,16 @@ export type CurriculumSubject = {
   reviewStatus: "verified" | "manual_review";
 };
 export type TypedPrerequisite = {
-  targetId: string;
-  requiredId: string;
+  id?: string;
+  targetId: string | null;
+  targetRequirementId?: string | null;
+  requiredId: string | null;
+  requirementId?: string | null;
+  requiredCode?: string;
   purpose: PrerequisitePurpose;
   requiredStatus: RequirementStatus;
+  requiredCount?: number;
+  resolutionStatus?: "VERIFIED_BY_CODE" | "CODE_GROUP" | "AMBIGUOUS_CODE" | "MISSING_CODE" | "MANUAL_REVIEW";
 };
 export type ChoiceRequirement = {
   id: string;
@@ -91,6 +97,7 @@ export function evaluateEnrollmentEligibility(input: {
   history: Record<string, RequirementStatus | "pending" | "in_progress">;
   currentYear: number;
   rollout?: Record<number, number>;
+  workshopCount?: number;
 }) {
   const applicable = subjectsForEnrollment(input.subjects, input.enrollment);
   const availableIds = new Set(applicable.map(subject => subject.id));
@@ -102,8 +109,13 @@ export function evaluateEnrollmentEligibility(input: {
     const rolloutYear = input.rollout?.[subject.yearLevel];
     if (rolloutYear && input.currentYear < rolloutYear) return { subject, status: "unknown" as const, reason: "Este año del plan todavía no se implementó", missing: [] as TypedPrerequisite[] };
     const rules = input.prerequisites.filter(rule => rule.targetId === subject.id && rule.purpose === "enroll");
-    if (rules.some(rule => !availableIds.has(rule.requiredId))) return { subject, status: "unknown" as const, reason: "Falta una correlativa en este plan", missing: [] as TypedPrerequisite[] };
-    const missing = rules.filter(rule => !meetsPrerequisite(input.history[rule.requiredId], rule.requiredStatus));
+    if (rules.some(rule => rule.resolutionStatus && !["VERIFIED_BY_CODE", "CODE_GROUP"].includes(rule.resolutionStatus)))
+      return { subject, status: "unknown" as const, reason: "Hay códigos de correlativas pendientes de revisión", missing: [] as TypedPrerequisite[] };
+    if (rules.some(rule => !rule.requirementId && (!rule.requiredId || !availableIds.has(rule.requiredId))))
+      return { subject, status: "unknown" as const, reason: "Falta una correlativa en este plan", missing: [] as TypedPrerequisite[] };
+    const missing = rules.filter(rule => rule.requirementId
+      ? (input.workshopCount ?? 0) < (rule.requiredCount ?? 1)
+      : !meetsPrerequisite(input.history[rule.requiredId as string], rule.requiredStatus));
     return { subject, status: missing.length ? "blocked" as const : "available" as const, missing };
   });
 }

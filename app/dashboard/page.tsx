@@ -12,7 +12,8 @@ import { localDateKey, nextRelevantEvent, progressSummary } from "@/lib/academic
 import { agendaItemsForDate, datePlusDays, sortAgendaItems, type PersonalEvent } from "@/lib/academic/personal-calendar";
 import type { CustomWeekSlot } from "@/lib/academic/custom-week";
 import { FdaHomeHero, FdaPlate } from "@/components/identity/fda-identity";
-import { countKnownProgress, evaluateEnrollmentEligibility, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
+import { countChoiceRequirement, countKnownProgress, evaluateEnrollmentEligibility, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
+import { resolveCodePrerequisites, type SourceCodePrerequisite } from "@/lib/academic/prerequisite-codes";
 
 type SavedSubject = { subject_id: number; status: string; grade: number | null };
 function formatDate(value: string) { return new Date(`${value}T12:00:00Z`).toLocaleDateString("es-AR", { timeZone: "UTC", day: "numeric", month: "long" }); }
@@ -56,12 +57,15 @@ export default async function DashboardPage() {
   const { data: activePlan } = active ? await supabase.from("curricula").select("catalog_kind").eq("id", active.curriculum_id).maybeSingle() : { data: null };
   const isManagedPlan = activePlan?.catalog_kind === "curriculum_subjects";
   if (active && isManagedPlan) {
-    const [{ data: program }, { data: rawSubjects }, { data: plasticHistory }, { data: rules }, { data: rollout }] = await Promise.all([
+    const [{ data: program }, { data: rawSubjects }, { data: plasticHistory }, ruleResult, requirementResult, { data: rollout }, workshopResult, optionResult] = await Promise.all([
       supabase.from("academic_programs").select("degree_type").eq("id", active.program_id).single(),
       supabase.from("curriculum_subjects").select("id,curriculum_id,subject_id,official_code,official_name,year_level,degree_scope,orientation_condition,requirement_kind,review_status").eq("curriculum_id", active.curriculum_id),
       supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status").eq("enrollment_id", active.id),
-      supabase.from("curriculum_prerequisites").select("target_curriculum_subject_id,required_curriculum_subject_id,purpose,required_status"),
+      supabase.from("curriculum_prerequisite_rules").select("id,curriculum_id,target_code,required_code,purpose,required_status,required_count,source,source_review_required,resolution_status").eq("curriculum_id", active.curriculum_id),
+      supabase.from("curriculum_requirements").select("id,curriculum_id,required_count,pool,exclude_enrollment_orientation").eq("curriculum_id", active.curriculum_id),
       supabase.from("curriculum_rollout").select("year_level,available_from").eq("curriculum_id", active.curriculum_id),
+      supabase.from("user_workshop_history").select("workshop_option_id,status").eq("enrollment_id", active.id),
+      supabase.from("plastic_workshop_options").select("id,orientation_id,verification_status"),
     ]);
     if (program && rawSubjects) {
       const enrollment: Enrollment = { id: active.id, programId: active.program_id, curriculumId: active.curriculum_id, orientationId: active.orientation_id, degreeType: program.degree_type };
@@ -70,7 +74,13 @@ export default async function DashboardPage() {
       const known = countKnownProgress(plasticSubjects, enrollment, plasticStatuses);
       approved = known.completed; progressTotal = known.total; progress = known.total ? Math.round(100 * known.completed / known.total) : 0;
       progressDetail = "requisitos obligatorios conocidos"; average = "—";
-      availableNames = evaluateEnrollmentEligibility({ enrollment, subjects: plasticSubjects, prerequisites: (rules ?? []).map(row => ({ targetId: row.target_curriculum_subject_id, requiredId: row.required_curriculum_subject_id, purpose: row.purpose, requiredStatus: row.required_status })), history: plasticStatuses, currentYear: new Date().getFullYear(), rollout: Object.fromEntries((rollout ?? []).map(row => [row.year_level, row.available_from])) }).filter(row => row.status === "available").map(row => row.subject.officialName);
+      if (!ruleResult.error && !requirementResult.error && !workshopResult.error && !optionResult.error) {
+        const requirements = (requirementResult.data ?? []).map(row => ({ id: row.id, curriculumId: row.curriculum_id, requiredCount: row.required_count, pool: row.pool, excludeEnrollmentOrientation: row.exclude_enrollment_orientation }));
+        const prerequisites = resolveCodePrerequisites({ enrollment, subjects: plasticSubjects, requirements, rules: (ruleResult.data ?? []).map(row => ({ id: row.id, curriculumId: row.curriculum_id, targetCode: row.target_code, requiredCode: row.required_code, purpose: row.purpose, requiredStatus: row.required_status, requiredCount: row.required_count, source: row.source, manualReview: row.source_review_required, storedResolutionStatus: row.resolution_status })) as SourceCodePrerequisite[] });
+        const workshopRequirement = requirements.find(row => row.pool === "complementary_workshops");
+        const workshopCount = workshopRequirement ? countChoiceRequirement(workshopRequirement, enrollment, (workshopResult.data ?? []).filter(row => row.status === "passed").flatMap(row => { const option = (optionResult.data ?? []).find(item => item.id === row.workshop_option_id && item.verification_status === "verified"); return option ? [{ subjectId: option.id, orientationId: option.orientation_id }] : []; })) : 0;
+        availableNames = evaluateEnrollmentEligibility({ enrollment, subjects: plasticSubjects, prerequisites, workshopCount, history: plasticStatuses, currentYear: new Date().getFullYear(), rollout: Object.fromEntries((rollout ?? []).map(row => [row.year_level, row.available_from])) }).filter(row => row.status === "available").map(row => row.subject.officialName);
+      } else availableNames = [];
     } else { approved = 0; progress = 0; progressTotal = 0; average = "—"; availableNames = []; progressDetail = "requisitos conocidos"; }
   }
   const period = currentAcademicPeriod();

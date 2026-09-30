@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Loader2, Lock, Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/browser";
 import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
 import { saveUserSubjects, type SubjectStatus } from "@/lib/supabase/mvp-queries";
@@ -12,7 +12,8 @@ import { getCourseEligibility } from "@/lib/academic/course-eligibility";
 import { parseAnalitico } from "@/lib/analitico";
 import { type ParsedAnalytic, type ParsedAnalyticSubject } from "@/lib/academic/analytic-parser";
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
-import { academicHistoryDetail, legacyHistoryItems } from "@/lib/academic/history-item";
+import { AcademicSubjectCard, type SubjectCardStatus } from "@/components/academic/academic-subject-card";
+import { SubjectDetailDialog } from "@/components/academic/subject-detail-dialog";
 
 type Subject = {
   id: string | number;
@@ -60,6 +61,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [subjectEdit, setSubjectEdit] = useState({ estado: "pendiente" as SubjectRow["estado"], nota: "", fecha_aprobacion: "" });
   const [hasImport, setHasImport] = useState(false);
   const [importMatches, setImportMatches] = useState<MatchedAnalyticSubject[]>([]);
   const [importPlanConfirmed, setImportPlanConfirmed] = useState(false);
@@ -71,7 +73,6 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
   const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "available" | "in_progress" | "completed" | "blocked">("all");
   const eligibility = useMemo(() => getCourseEligibility({ subjects: catalog.map(item => ({ id: item.id, name: item.nombre, code: item.code, year: item.anio, curriculum: item.curriculum })), userSubjects: history, curriculum, degree }), [catalog, history, curriculum, degree]);
   const eligibilityById = useMemo(() => new Map(eligibility.map(item => [String(item.subject.id), item])), [eligibility]);
-  const academicHistoryById = useMemo(() => new Map(legacyHistoryItems(catalog.map(item => ({ id: item.id, name: item.nombre, year: item.anio })), history).map(item => [item.id, item])), [catalog, history]);
 
   useEffect(() => {
     async function loadCatalogAndHistory() {
@@ -169,11 +170,6 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
     setError("");
   }
 
-  function updateRow(id: string | number, changes: Partial<SubjectRow>) {
-    setRows(current => current.map(row => String(row.id) === String(id) ? { ...row, ...changes } : row));
-    setHasImport(true);
-  }
-
   function rowFor(subject: Subject) {
     return rows.find(row => String(row.id) === String(subject.id));
   }
@@ -194,51 +190,43 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
       .filter((required): required is Subject => Boolean(required));
   }
 
-  function isSubjectUnlocked(subject: Subject) {
-    if (curriculum === "old") {
-      const requirement = requirements2006[subject.code ?? ""];
-      if (!requirement) return true;
-      const meets = (code: string, needsPassed: boolean) => {
-        const required = catalog.find(candidate => candidate.code === code);
-        if (!required) return false;
-        const current = rowFor(required);
-        const saved = savedFor(required);
-        const status = current ? current.estado : saved?.status;
-        return status === "aprobada" || status === "passed" || (!needsPassed && status === "regular");
-      };
-      return requirement.regular.every(code => meets(code, false)) && requirement.passed.every(code => meets(code, true));
-    }
-    return requiredSubjectsFor(subject).every(required => {
-      const current = rowFor(required);
-      const saved = savedFor(required);
-      return current?.estado === "aprobada" || current?.estado === "regular"
-        || saved?.status === "passed" || saved?.status === "regular";
+  function openSubject(subject: Subject) {
+    const saved = savedFor(subject);
+    const row = rowFor(subject);
+    setSubjectEdit({
+      estado: row?.estado ?? (saved?.status === "passed" ? "aprobada" : saved?.status === "regular" ? "regular" : "pendiente"),
+      nota: row?.nota ?? (saved?.grade == null ? "" : String(saved.grade)),
+      fecha_aprobacion: row?.fecha_aprobacion ?? saved?.passed_at ?? "",
     });
+    setEditingSubjectId(String(subject.id));
   }
 
-  function toggleSubject(subject: Subject, checked: boolean) {
-    if (checked && !isSubjectUnlocked(subject)) return;
-    const current = rowFor(subject);
-    const saved = savedFor(subject);
-    if (checked) {
-      setRows(rowsBefore => {
-        const existing = rowsBefore.find(row => String(row.id) === String(subject.id));
-        if (existing) return rowsBefore.map(row => String(row.id) === String(subject.id)
-          ? { ...row, detected: true, estado: row.estado === "pendiente" ? "aprobada" : row.estado }
-          : row);
-        return [...rowsBefore, {
-          ...toRow(subject, true),
-          estado: saved?.status === "regular" ? "regular" : "aprobada",
-          nota: saved?.grade == null ? "" : String(saved.grade),
-          fecha_aprobacion: saved?.passed_at ?? ""
-        }];
-      });
-    } else if (current) {
-      updateRow(subject.id, { detected: false, estado: "pendiente" });
+  async function saveSubjectEdit(subject: Subject) {
+    const normalizedGrade = subjectEdit.nota.trim().replace(",", ".");
+    const grade = normalizedGrade ? Number(normalizedGrade) : undefined;
+    if (grade !== undefined && (!Number.isFinite(grade) || grade < 1 || grade > 10)) {
+      setError("La nota debe ser un número entre 1 y 10.");
+      return;
     }
-    setHasImport(true);
-    setMessage("");
+    setSaving(true);
     setError("");
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("Tu sesión expiró. Volvé a iniciar sesión.");
+      const status: SubjectStatus = subjectEdit.estado === "aprobada" ? "passed" : subjectEdit.estado === "regular" ? "regular" : "pending";
+      const { error: saveError } = await saveUserSubjects(supabase, user.id, [{ subjectId: subject.id, status, grade, passedAt: subjectEdit.fecha_aprobacion || undefined }]);
+      if (saveError) throw new Error("No pudimos guardar esta materia. Intentá nuevamente.");
+      const { data: refreshed, error: refreshError } = await supabase.from("user_subjects").select("subject_id,status,grade,passed_at").eq("user_id", user.id).eq("subject_id", subject.id).maybeSingle();
+      if (refreshError || !refreshed) throw new Error("El guardado se envió, pero no pudimos confirmarlo. Recargá la página.");
+      setHistory(current => [...current.filter(item => String(item.subject_id) !== String(subject.id)), refreshed as SavedHistory]);
+      setRows(current => current.map(row => String(row.id) === String(subject.id) ? { ...row, ...subjectEdit, detected: status !== "pending" } : row));
+      setEditingSubjectId(null);
+      setMessage("Materia guardada correctamente.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No pudimos guardar esta materia.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function processFile() {
@@ -492,46 +480,31 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
                 const courseStatus = eligibilityById.get(String(subject.id));
                 const row = rowFor(subject);
                 const saved = savedFor(subject);
-                const unlocked = isSubjectUnlocked(subject);
-                const missingRequirements = requiredSubjectsFor(subject).filter(required => {
-                  const current = rowFor(required);
-                  const requiredSaved = savedFor(required);
-                  return current?.estado !== "aprobada" && current?.estado !== "regular"
-                    && requiredSaved?.status !== "passed" && requiredSaved?.status !== "regular";
-                });
-                const checked = Boolean(row?.detected || (!row && saved?.status === "passed"));
-                const activeRow = row ?? (checked ? {
-                  ...toRow(subject, true),
-                  estado: "aprobada" as const,
-                  nota: saved?.grade == null ? "" : String(saved.grade),
-                  fecha_aprobacion: saved?.passed_at ?? ""
-                } : null);
-                return <div key={subject.id} className={`relative min-w-0 overflow-hidden rounded-xl border-2 p-3 transition ${checked ? "border-ink bg-yellow-100 shadow-[3px_3px_0_0_#000]" : "border-ink/10 bg-cream/50"} ${!unlocked ? "opacity-75" : ""}`}>
-                  {checked && <span aria-hidden className="marker-fluo" />}
-                  <div className="relative z-[1] flex min-w-0 flex-wrap items-start justify-between gap-3">
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
-                      <input aria-label={`Marcar ${subject.nombre}`} className="mt-0.5 h-5 w-5 shrink-0 accent-ink disabled:cursor-not-allowed" type="checkbox" checked={checked} disabled={!unlocked && !checked} onChange={event => toggleSubject(subject, event.target.checked)} />
-                      <div className="flex min-w-0 items-start gap-2">
-                        {!unlocked && <Lock aria-label="Materia bloqueada por correlativas" size={16} className="mt-0.5 shrink-0 text-ink/45" />}
-                        <span className="min-w-0 [overflow-wrap:anywhere] font-medium leading-snug">{subject.nombre}<span className="ml-2 inline-block text-[10px] font-black uppercase tracking-wider text-cronopios-magenta">{courseStatus?.status === "available" ? "Disponible" : courseStatus?.status === "completed" ? "Aprobada" : courseStatus?.status === "in_progress" ? "Cursada aprobada" : courseStatus?.status === "blocked" && courseStatus.missingRequirements.length === 1 ? "Te falta 1" : courseStatus?.status === "unknown" ? "Revisar regla" : ""}</span>{activeRow && (activeRow.nota || activeRow.fecha_aprobacion) ? <span className="block text-xs font-normal text-ink/65">{academicHistoryDetail({ grade: activeRow.nota ? Number(activeRow.nota.replace(",", ".")) : null, date: activeRow.fecha_aprobacion || null })}</span> : academicHistoryDetail(academicHistoryById.get(String(subject.id)) ?? { grade: null, date: null }) && <span className="block text-xs font-normal text-ink/65">{academicHistoryDetail(academicHistoryById.get(String(subject.id))!)}</span>}</span>
-                      </div>
-                    </div>
-                    {unlocked && activeRow && <button type="button" className="button-secondary shrink-0" aria-expanded={editingSubjectId === String(subject.id)} onClick={() => setEditingSubjectId(current => current === String(subject.id) ? null : String(subject.id))}>{editingSubjectId === String(subject.id) ? "Cerrar edición" : "Editar"}</button>}
-                  </div>
-                  {unlocked && activeRow && editingSubjectId === String(subject.id) && <div className="relative z-[1] mt-3 grid min-w-0 gap-3 border-t border-ink/20 bg-white/90 pt-3 sm:grid-cols-3">
-                    <label className="min-w-0 text-sm font-bold">Estado<select aria-label={`Estado de ${subject.nombre}`} className="input mt-1 min-h-11 w-full" value={activeRow.estado} onChange={event => updateRow(subject.id, { estado: event.target.value as SubjectRow["estado"] })}><option value="pendiente">Sin cursar</option><option value="regular">Cursada aprobada</option><option value="aprobada">Aprobada</option></select></label>
-                    <label className="min-w-0 text-sm font-bold">Nota opcional<input aria-label={`Nota de ${subject.nombre}`} className="input mt-1 min-h-11 w-full" type="number" min="1" max="10" step="0.1" value={activeRow.nota} onChange={event => updateRow(subject.id, { nota: event.target.value })} /></label>
-                    <label className="min-w-0 text-sm font-bold">Fecha opcional<input aria-label={`Fecha de ${subject.nombre}`} className="input mt-1 min-h-11 w-full" type="date" value={activeRow.fecha_aprobacion} onChange={event => updateRow(subject.id, { fecha_aprobacion: event.target.value })} /></label>
-                    <div className="sm:col-span-3"><button type="button" disabled={saving} onClick={() => void saveRows()} className="button-primary">{saving ? "Guardando..." : "Guardar cambios"}</button></div>
-                  </div>}
-                  {!unlocked && missingRequirements.length > 0 && <p className="relative z-[1] mt-2 pl-8 text-xs font-medium text-ink/55">Necesitás aprobar o regularizar: {missingRequirements.map(required => required.nombre).join(", ")} para poder cursarla.</p>}
-                  {courseStatus?.status === "available" && <Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(subject.id))}`} className="relative z-[1] mt-2 inline-flex min-h-10 items-center text-xs font-bold text-cronopios-magenta underline">Agregar a Mi agenda</Link>}
-                </div>;
+                const currentStatus = row?.estado ?? (saved?.status === "passed" ? "aprobada" : saved?.status === "regular" ? "regular" : "pendiente");
+                const cardStatus: SubjectCardStatus = currentStatus === "aprobada" ? "passed" : currentStatus === "regular" ? "regular" : courseStatus?.status === "available" ? "available" : courseStatus?.status === "unknown" ? "review" : "pending";
+                const grade = row?.nota || saved?.grade || null;
+                return <AcademicSubjectCard key={subject.id} name={subject.nombre} status={cardStatus} grade={grade} onOpen={() => openSubject(subject)} />;
               })}
             </div>
           </section>;
         })}
       </div>
+      {editingSubjectId && (() => {
+        const subject = catalog.find(item => String(item.id) === editingSubjectId);
+        if (!subject) return null;
+        const missingRequirements = requiredSubjectsFor(subject).filter(required => {
+          const current = rowFor(required);
+          const saved = savedFor(required);
+          return current?.estado !== "aprobada" && current?.estado !== "regular" && saved?.status !== "passed" && saved?.status !== "regular";
+        });
+        return <SubjectDetailDialog title={subject.nombre} onClose={() => setEditingSubjectId(null)}>
+          <label className="block text-sm font-bold">Estado<select aria-label={`Estado de ${subject.nombre}`} className="input mt-1 w-full" value={subjectEdit.estado} onChange={event => setSubjectEdit(current => ({ ...current, estado: event.target.value as SubjectRow["estado"] }))}><option value="pendiente">Sin cursar</option><option value="regular">Cursada aprobada</option><option value="aprobada">Aprobada</option></select></label>
+          <label className="block text-sm font-bold">Nota opcional<input aria-label={`Nota de ${subject.nombre}`} className="input mt-1 w-full" type="number" min="1" max="10" step="0.1" value={subjectEdit.nota} onChange={event => setSubjectEdit(current => ({ ...current, nota: event.target.value }))} /></label>
+          <details><summary className="cursor-pointer text-sm font-bold">Más información</summary><label className="mt-3 block text-sm font-bold">Fecha opcional<input aria-label={`Fecha de ${subject.nombre}`} className="input mt-1 w-full" type="date" value={subjectEdit.fecha_aprobacion} onChange={event => setSubjectEdit(current => ({ ...current, fecha_aprobacion: event.target.value }))} /></label>{missingRequirements.length > 0 && <p className="mt-3 text-sm text-ink/65">Para cursarla necesitás: {missingRequirements.map(required => required.nombre).join(", ")}.</p>}<Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(subject.id))}`} className="mt-3 inline-block text-sm font-bold underline">Agregar a Mi agenda</Link></details>
+          {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+          <button type="button" disabled={saving} onClick={() => void saveSubjectEdit(subject)} className="button-primary w-full">{saving ? "Guardando..." : "Guardar cambios"}</button>
+        </SubjectDetailDialog>;
+      })()}
       {hasImport && rows.length > 0 && <div className="mt-7 border-t-2 border-ink/15 pt-5">
         <button type="button" disabled={saving} onClick={() => void saveRows()} className="button-primary">{saving ? "Guardando..." : "Guardar materias"}</button>
         {message && <p className="mt-3 text-sm font-medium text-green-700">{message}</p>}
