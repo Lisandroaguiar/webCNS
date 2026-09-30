@@ -53,7 +53,9 @@ describe("modelo multicarrera", () => {
   it("no ubica una orientación común en un casillero reservado para otra actividad", () => {
     expect(workshopOptionFitsSlot("Taller Complementario I", "Escenografía")).toBe(true);
     expect(workshopOptionFitsSlot("Taller Complementario V (Artes Combinadas)", "Escenografía")).toBe(false);
-    expect(workshopOptionFitsSlot("Taller Complementario V (Artes Combinadas)", "Artes Combinadas")).toBe(true);
+    expect(workshopOptionFitsSlot("Taller Complementario V (Artes Combinadas)", "Artes Combinadas", "special")).toBe(true);
+    expect(workshopOptionFitsSlot("Taller Complementario I", "Artes Combinadas", "special")).toBe(false);
+    expect(workshopOptionFitsSlot("Taller Complementario V (Artes Combinadas)", "Artes Combinadas", "orientation")).toBe(false);
   });
   it("vincula sólo un taller real con opción verificada fuera de la orientación básica", () => {
     const e = enrollment("pintura", "licenciatura");

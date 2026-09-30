@@ -22,7 +22,7 @@ type ReviewRow = MatchedAnalyticSubject & { workshopSelected?: boolean; workshop
 type WorkshopHistory = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; workshop_option_id: string | null; curriculum_subject_id: string | null };
 type EnrollmentHistory = { curriculum_subject_id: string; status: Status; grade: number | null; passed_at: string | null };
 type PendingAcademicRecord = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; match_kind: string; record_type: "subject" | "workshop"; suggested_subject_id: string | null; resolution_status: "pending" | "ignored" | "confirmed" };
-type WorkshopOption = { id: string; orientation_id: string; academic_name: string; siu_name: string | null; verification_status: string };
+type WorkshopOption = { id: string; orientation_id: string | null; option_kind: "orientation" | "special"; academic_name: string; siu_name: string | null; verification_status: string };
 
 export function TrajectoryManager({ userId, reviewOnly = false, showManagement = true }: { userId: string; reviewOnly?: boolean; showManagement?: boolean }) {
   const supabase = useMemo(() => createClient(), []);
@@ -82,7 +82,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const progress = active ? countKnownProgress(subjects, active, history) : null;
   const workshopCount = active ? countChoiceRequirement({ id: "complementarios", curriculumId: active.curriculumId, requiredCount: 4, pool: "complementary_workshops", excludeEnrollmentOrientation: true }, active,
     workshopHistory.filter(row => row.status === "passed").flatMap(row => { const option = workshopOptions.find(item => item.id === row.workshop_option_id && item.verification_status === "verified"); return option ? [{ subjectId: option.id, orientationId: option.orientation_id }] : []; })) : 0;
-  const verifiedWorkshopOptions = workshopOptions.filter(option => option.verification_status === "verified" && option.orientation_id !== active?.orientationId);
+  const verifiedWorkshopOptions = workshopOptions.filter(option => option.verification_status === "verified" && option.orientation_id !== active?.orientationId && (option.option_kind !== "special" || workshopCount >= 4));
 
   async function reload() {
     const [programResult, planResult, orientationResult, enrollmentResult, subjectResult, workshopOptionResult] = await Promise.all([
@@ -91,7 +91,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       supabase.from("academic_orientations").select("id,family,name"),
       supabase.from("user_enrollments").select("id,program_id,curriculum_id,orientation_id,is_active,deleted_at").eq("user_id", userId),
       supabase.from("curriculum_subjects").select("id,curriculum_id,subject_id,official_code,official_name,year_level,degree_scope,orientation_condition,requirement_kind,review_status").order("year_level").order("official_name"),
-      supabase.from("plastic_workshop_options").select("id,orientation_id,academic_name,siu_name,verification_status"),
+      supabase.from("plastic_workshop_options").select("id,orientation_id,option_kind,academic_name,siu_name,verification_status"),
     ]);
     const failed = [programResult, planResult, orientationResult, enrollmentResult, subjectResult].find(result => result.error);
     if (failed?.error) { setError(`No pudimos cargar las trayectorias (${failed.error.code}). Revisá que se hayan aplicado las migraciones académicas.`); return; }
@@ -184,7 +184,8 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       const option = verifiedWorkshopOptions.find(row => row.id === workshopForm.optionId);
       if (!option) throw new Error("Elegí un taller verificado.");
       const chosenSlot = workshopSlots.find(slot => slot.id === workshopForm.slotId);
-      if (chosenSlot && !workshopOptionFitsSlot(chosenSlot.officialName, option.academic_name)) throw new Error("Ese taller no corresponde a este lugar del plan.");
+      if (option.option_kind === "special" && workshopCount < 4) throw new Error("Este taller se habilita después de aprobar cuatro talleres complementarios de distintas orientaciones.");
+      if (chosenSlot && !workshopOptionFitsSlot(chosenSlot.officialName, option.academic_name, option.option_kind)) throw new Error("Ese taller no corresponde a este lugar del plan.");
       const existing = workshopHistory.find(row => row.id === workshopForm.existingId);
       const rawName = (existing?.raw_name ?? option.siu_name ?? option.academic_name).trim();
       const values = validateAcademicEdit({ status: workshopForm.status, grade: workshopForm.grade, date: workshopForm.date });
@@ -298,7 +299,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       if (aliasError) throw new Error("No pudimos verificar los alias del plan. Recargá la página e intentá de nuevo.");
       setAnalyticMatches(classifyPlasticAnalyticRows(matchAnalyticSubjects(parsed.subjects, visible.map(row => ({ id: row.id, nombre: row.officialName, requirementKind: row.requirementKind })),
         (aliases ?? []).map(row => ({ subject_id: row.curriculum_subject_id, alias: row.alias, verified: row.verified })),
-        { curriculumId: active.curriculumId, orientationId: active.orientationId }), workshopOptions, active.orientationId));
+        { curriculumId: active.curriculumId, orientationId: active.orientationId }), workshopOptions.filter((option): option is WorkshopOption & { orientation_id: string } => option.option_kind === "orientation" && option.orientation_id !== null), active.orientationId));
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos leer el analítico."); }
     finally { setBusy(false); }
   }
@@ -367,11 +368,11 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         {workshopStorageReady ? <p className="mt-1 text-sm font-semibold">{Math.min(4, workshopCount)} de 4 realizados · Falta {Math.max(0, 4 - workshopCount)}</p> : <p className="mt-1 text-sm">El historial de talleres todavía no está disponible.</p>}
         <div className="mt-2 space-y-1 text-sm">{workshopHistory.filter(row => row.status === "passed").map(row => {
           const option = workshopOptions.find(item => item.id === row.workshop_option_id);
-          return option?.verification_status === "verified" && option.orientation_id !== active.orientationId ? <p key={row.id}>✓ {option.academic_name}</p> : null;
+          return option?.verification_status === "verified" && option.option_kind === "orientation" && option.orientation_id !== active.orientationId ? <p key={row.id}>✓ {option.academic_name}</p> : null;
         })}</div>
         <details className="mt-3"><summary className="cursor-pointer font-bold">Gestionar talleres</summary><div className="mt-3 space-y-2">{workshopHistory.map(row => {
           const option = workshopOptions.find(item => item.id === row.workshop_option_id);
-          const counts = row.status === "passed" && option?.verification_status === "verified" && option.orientation_id !== active.orientationId;
+          const counts = row.status === "passed" && option?.verification_status === "verified" && option.option_kind === "orientation" && option.orientation_id !== active.orientationId;
           return <div key={row.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-ink/15 pt-2 text-sm">
             <p className="min-w-0 [overflow-wrap:anywhere]"><span aria-hidden>{counts ? "✓ " : "○ "}</span><strong>{option?.academic_name ?? row.raw_name}</strong>{option && row.raw_name !== option.academic_name && <span className="block text-xs text-ink/60">{row.raw_name}</span>}{!counts && <span className="block text-xs text-ink/60">{option?.orientation_id === active.orientationId ? "Es tu orientación básica; no suma al requisito." : option ? academicStatusLabel(row.status) : "Pendiente de verificar orientación; todavía no suma."}</span>}{academicHistoryDetail({ grade: row.grade, date: row.passed_at }) && <span className="block text-xs text-ink/60">{academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</span>}</p>
             {option && option.orientation_id !== active.orientationId && <button type="button" className="button-secondary" onClick={() => { setWorkshopForm({ existingId: row.id, slotId: row.curriculum_subject_id ?? "", rawName: row.raw_name, optionId: option.id, status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" }); setWorkshopModalOpen(true); }}>Editar</button>}
@@ -383,9 +384,10 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       {workshopModalOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setWorkshopModalOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="workshop-dialog-title" onKeyDown={event => { if (event.key === "Escape" && !busy) setWorkshopModalOpen(false); }} className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-2 border-ink bg-white p-5 shadow-[5px_5px_0_0_#000] sm:rounded-2xl">
           <h3 id="workshop-dialog-title" className="font-display text-xl font-black">{workshopForm.existingId ? "Editar taller" : "Agregar taller"}</h3>
+          {workshopForm.slotId && workshopSlots.find(slot => slot.id === workshopForm.slotId)?.officialName.includes("(") && workshopCount < 4 && <p className="mt-3 text-sm">Este taller se habilita después de aprobar cuatro talleres complementarios de distintas orientaciones.</p>}
           <div className="mt-4 grid gap-3">
-            <label className="text-sm font-bold">Taller<select className="input mt-1" value={workshopForm.optionId} disabled={Boolean(workshopForm.existingId)} onChange={event => setWorkshopForm(current => ({ ...current, optionId: event.target.value }))}><option value="">Elegí un taller</option>{verifiedWorkshopOptions.filter(option => !workshopForm.slotId || workshopOptionFitsSlot(workshopSlots.find(slot => slot.id === workshopForm.slotId)?.officialName ?? "", option.academic_name)).map(option => <option key={option.id} value={option.id}>{option.academic_name}</option>)}</select></label>
-            {!workshopForm.slotId && <label className="text-sm font-bold">Lugar en el recorrido<select className="input mt-1" value={workshopForm.slotId} onChange={event => setWorkshopForm(current => ({ ...current, slotId: event.target.value }))}><option value="">Pendiente de ubicar</option>{workshopSlots.filter(slot => !linkedWorkshops.has(slot.id) && (!workshopForm.optionId || workshopOptionFitsSlot(slot.officialName, workshopOptions.find(option => option.id === workshopForm.optionId)?.academic_name ?? ""))).map(slot => <option key={slot.id} value={slot.id}>Año {slot.yearLevel} · {slot.officialName}</option>)}</select></label>}
+            <label className="text-sm font-bold">Taller<select className="input mt-1" value={workshopForm.optionId} disabled={Boolean(workshopForm.existingId)} onChange={event => setWorkshopForm(current => ({ ...current, optionId: event.target.value }))}><option value="">Elegí un taller</option>{verifiedWorkshopOptions.filter(option => !workshopForm.slotId || workshopOptionFitsSlot(workshopSlots.find(slot => slot.id === workshopForm.slotId)?.officialName ?? "", option.academic_name, option.option_kind)).map(option => <option key={option.id} value={option.id}>{option.academic_name}</option>)}</select></label>
+            {!workshopForm.slotId && <label className="text-sm font-bold">Lugar en el recorrido<select className="input mt-1" value={workshopForm.slotId} onChange={event => setWorkshopForm(current => ({ ...current, slotId: event.target.value }))}><option value="">Pendiente de ubicar</option>{workshopSlots.filter(slot => !linkedWorkshops.has(slot.id) && (!slot.officialName.includes("(") || workshopCount >= 4) && (!workshopForm.optionId || workshopOptionFitsSlot(slot.officialName, workshopOptions.find(option => option.id === workshopForm.optionId)?.academic_name ?? "", workshopOptions.find(option => option.id === workshopForm.optionId)?.option_kind))).map(slot => <option key={slot.id} value={slot.id}>Año {slot.yearLevel} · {slot.officialName}</option>)}</select></label>}
             <label className="text-sm font-bold">Estado<select className="input mt-1" value={workshopForm.status} onChange={event => setWorkshopForm(current => ({ ...current, status: event.target.value as Status }))}><option value="passed">Aprobada</option><option value="regular">Cursada aprobada</option><option value="in_progress">Cursando</option><option value="pending">Sin completar</option></select></label>
             <label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={workshopForm.grade} onChange={event => setWorkshopForm(current => ({ ...current, grade: event.target.value }))} /></label>
             <details><summary className="cursor-pointer text-sm font-bold">Más información</summary><label className="mt-2 block text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={workshopForm.date} onChange={event => setWorkshopForm(current => ({ ...current, date: event.target.value }))} /></label></details>

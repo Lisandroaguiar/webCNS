@@ -41,17 +41,18 @@ export type ChoiceRequirement = {
   pool: string;
   excludeEnrollmentOrientation: boolean;
 };
-export type WorkshopChoice = { subjectId: string; orientationId: string };
+export type WorkshopChoice = { subjectId: string; orientationId: string | null };
 export type LinkedWorkshop = { curriculum_subject_id: string | null; workshop_option_id: string | null; status: "pending" | "in_progress" | "regular" | "passed" };
-export type VerifiedWorkshopOption = { id: string; orientation_id: string; verification_status: string };
+export type VerifiedWorkshopOption = { id: string; orientation_id: string | null; verification_status: string };
 
 export function isComplementaryWorkshopSlot(subject: Pick<CurriculumSubject, "officialName" | "curriculumId">) {
   return subject.curriculumId.startsWith("plastica-") && /^Taller Complementario\b/i.test(subject.officialName);
 }
 
-export function workshopOptionFitsSlot(slotName: string, optionName: string) {
+export function workshopOptionFitsSlot(slotName: string, optionName: string, optionKind: "orientation" | "special" = "orientation") {
   const named = slotName.match(/\(([^)]+)\)/)?.[1];
-  return !named || optionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  if (!named) return optionKind === "orientation";
+  return optionKind === "special" && optionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .includes(named.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
 }
 
@@ -82,7 +83,7 @@ export function subjectsForEnrollment(subjects: CurriculumSubject[], enrollment:
 
 export function countChoiceRequirement(requirement: ChoiceRequirement, enrollment: Enrollment, choices: WorkshopChoice[]) {
   if (requirement.curriculumId !== enrollment.curriculumId) return 0;
-  return new Set(choices.filter(choice => !requirement.excludeEnrollmentOrientation || choice.orientationId !== enrollment.orientationId)
+  return new Set(choices.filter(choice => choice.orientationId && (!requirement.excludeEnrollmentOrientation || choice.orientationId !== enrollment.orientationId))
     .map(choice => choice.orientationId)).size;
 }
 
