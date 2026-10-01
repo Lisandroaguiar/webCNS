@@ -10,6 +10,10 @@
   --cronopios-ink: #221E21;
   --cronopios-paper: #F3EDEE;
   --white: #FFFFFF;
+  --motion-fast: 160ms;
+  --motion-normal: 240ms;
+  --motion-expressive: 360ms;
+  --motion-direct: cubic-bezier(.2, .7, .2, 1);
 }
 * { box-sizing: border-box; }
 body {
@@ -26,11 +30,33 @@ button, a, input, select { @apply focus-visible:outline focus-visible:outline-2 
 .academic-subject-card__name--passed::after { position: absolute; z-index: 0; left: 1px; width: calc(100% - 2px); height: .72em; background: var(--cronopios-magenta); border-radius: 46% 18% 39% 12% / 31% 48% 25% 42%; clip-path: polygon(0 25%, 5% 7%, 14% 22%, 25% 3%, 38% 16%, 54% 4%, 68% 19%, 82% 7%, 96% 20%, 100% 57%, 94% 84%, 76% 76%, 61% 94%, 43% 81%, 27% 96%, 11% 77%, 0 88%); opacity: .52; pointer-events: none; content: ""; }
 .academic-subject-card__name--passed::before { top: .42em; transform: rotate(-.7deg); }
 .academic-subject-card__name--passed::after { top: 1.6em; transform: rotate(.5deg); }
+.academic-subject-card__name--drawing::before,
+.academic-subject-card__name--drawing::after { animation: marker-draw var(--motion-expressive) var(--motion-direct) both; transform-origin: left center; }
+.academic-subject-card__name--drawing::after { animation-delay: 45ms; }
+.academic-subject-card { transition: transform var(--motion-fast) var(--motion-direct), background-color var(--motion-fast) ease; }
+@media (hover: hover) { .academic-subject-card:hover { transform: translateY(-2px); } }
+.academic-dialog__paper { animation: paper-open var(--motion-normal) var(--motion-direct) both; transform-origin: center bottom; }
+.academic-dialog__paper--closing { animation: paper-close 140ms ease-in both; }
+.academic-sheet-enter { animation: sheet-enter 300ms var(--motion-direct) both; }
+.academic-stamp { animation: stamp-land var(--motion-expressive) var(--motion-direct) both; }
+.scrapbook-card { animation: scrapbook-settle var(--motion-normal) var(--motion-direct) both; }
+.scrapbook-card__tape { animation: scrapbook-tape-settle var(--motion-fast) var(--motion-direct) both; }
+.tape-detail { animation: tape-settle var(--motion-fast) var(--motion-direct) both; }
+.fda-plate__figure, .public-home-hero__david { animation: print-reveal var(--motion-normal) ease-out both; }
+@keyframes marker-draw { from { transform: scaleX(0) rotate(-.7deg); } to { transform: scaleX(1) rotate(-.7deg); } }
+@keyframes paper-open { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes paper-close { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(5px) scale(.99); } }
+@keyframes sheet-enter { from { opacity: .75; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes stamp-land { from { opacity: 0; transform: translateX(-50%) scale(1.15) rotate(-4deg); } to { opacity: 1; transform: translateX(-50%) scale(1) rotate(-2deg); } }
+@keyframes scrapbook-settle { from { opacity: .8; transform: translateY(6px) rotate(-1deg); } to { opacity: 1; transform: translateY(0) rotate(0); } }
+@keyframes tape-settle { from { opacity: .8; transform: rotate(-5deg) scale(.97); } to { opacity: 1; transform: rotate(-3deg) scale(1); } }
+@keyframes scrapbook-tape-settle { from { opacity: .8; transform: translateX(-50%) rotate(-5deg) scale(.97); } to { opacity: 1; transform: translateX(-50%) rotate(-3deg) scale(1); } }
+@keyframes print-reveal { from { opacity: 0; clip-path: inset(0 0 100% 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
 ::selection { background: var(--cronopios-pink); color: var(--cronopios-ink); }
 @layer components {
   .card { @apply min-w-0 max-w-full rounded-none border-2 border-black bg-white p-5 shadow-[4px_4px_0_0_#221E21]; }
   .input { @apply w-full rounded-xl border border-ink/15 bg-white/80 px-4 py-3 outline-none transition placeholder:text-ink/35 focus:border-coral focus:ring-2 focus:ring-coral/20; }
-  .button-primary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-none border-2 border-ink bg-cronopios-magenta px-5 py-3 font-bold text-ink shadow-[4px_4px_0_0_#221E21] transition hover:-translate-y-0.5 hover:bg-cronopios-pink active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0; }
+  .button-primary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-none border-2 border-ink bg-cronopios-magenta px-5 py-3 font-bold text-ink shadow-[4px_4px_0_0_#221E21] transition hover:-translate-y-px hover:bg-cronopios-pink active:scale-[.98] active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0; }
   .button-secondary { @apply inline-flex min-h-11 items-center justify-center gap-2 border-2 border-ink bg-white px-4 py-2.5 font-bold text-ink transition hover:bg-cronopios-paper active:bg-cronopios-paper/80 disabled:cursor-not-allowed disabled:opacity-50; }
   .button-text { @apply inline-flex min-h-11 items-center gap-1 font-bold text-ink underline underline-offset-4 transition hover:text-[#9D006D] disabled:cursor-not-allowed disabled:opacity-50; }
   .button-destructive { @apply inline-flex min-h-11 items-center gap-1 border-b-2 border-[#9D006D] px-1 font-bold text-[#75104F] transition hover:bg-[#F9E3EF] disabled:cursor-not-allowed disabled:opacity-50; }
@@ -65,6 +91,14 @@ button, a, input, select { @apply focus-visible:outline focus-visible:outline-2 
   background: url('/textures/tape-real.png') center / 250% auto no-repeat;
   transform: rotate(-3deg);
   pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .academic-subject-card__name--drawing::before, .academic-subject-card__name--drawing::after,
+  .academic-dialog__paper, .academic-dialog__paper--closing, .academic-sheet-enter,
+  .academic-stamp, .scrapbook-card, .scrapbook-card__tape, .tape-detail,
+  .fda-plate__figure, .public-home-hero__david { animation: none !important; }
+  .academic-subject-card, .button-primary { transition-duration: 0ms !important; }
+  .academic-subject-card:hover, .button-primary:hover, .button-primary:active { transform: none !important; }
 }
 .editorial-title { @apply font-display font-black uppercase leading-[0.9] tracking-[-0.055em]; }
 .editorial-title { overflow-wrap: anywhere; }

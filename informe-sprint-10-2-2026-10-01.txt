@@ -1,0 +1,20 @@
+SPRINT 10.2 — MOTION & IDENTIDAD FDA
+Fecha: 01/10/2026
+Estado: implementación local validada; no publicada.
+
+1. Lenguaje: marcador = aprobación; papel = editor/cambio de trayectoria; cinta = énfasis; sello = año completo; fotocopia = aparición de imagen editorial. Animaciones únicas y breves, sin loops decorativos.
+2. Marcador: AcademicSubjectCard reproduce un trazo de 360 ms sólo tras guardar una transición real a Aprobada. La hidratación inicial, el scroll y las recargas no lo disparan. Aplica a Multimedia y Plástica.
+3. Papel: SubjectDetailDialog abre en 240 ms y cierra en 140 ms; el cambio de trayectoria entra en 300 ms con pequeño desplazamiento vertical. El selector responde de inmediato y no altera la activación académica.
+4. Cintas y Cartelera: la cinta existente se acomoda en 160 ms; los recortes de ScrapbookCard aparecen en 240 ms una vez al montar. Las figuras FDA/David/Moisés tienen aparición de impresión de 240 ms sin filtro animado.
+5. Sello: AcademicStamp aparece únicamente si un guardado termina de completar todos los requisitos conocidos no electivos de un año. Se verificó con el primer año sintético de Profesorado Plástica. El aviso “✓ Guardado” dura 1,6 s.
+6. Tokens: --motion-fast 160 ms, --motion-normal 240 ms, --motion-expressive 360 ms y una curva directa común en app/globals.css. Sin dependencias nuevas.
+7. Accesibilidad: prefers-reduced-motion elimina los movimientos; la funcionalidad permanece. El navegador E2E tenía esta preferencia activada y se comprobó apertura/guardado/cambio de trayectoria sin animación. La reproducción visual a velocidad normal no pudo observarse en esta sesión.
+8. Performance: diez aperturas y cierres consecutivos del editor completaron sin bloqueo. No hay intervalos, requestAnimationFrame ni loops nuevos. Las transiciones principales usan transform/opacity; el estado final conserva el layout.
+9. Mobile: Recorrido, editor, Cartelera y onboarding verificados a 320, 360, 390 y 430 px sin desborde horizontal. A 320 px el botón Guardar y el cierre del editor permanecieron visibles y utilizables.
+10. Regresión Plástica: guardado de una materia sintética a Aprobada, progreso y promedio actualizados; después se restauró a Sin cursar y volvió el progreso/ promedio originales. Se verificó cambio Plástica → Multimedia → Plástica con contenido correcto y talleres intactos.
+11. Regresión Multimedia: trayectoria, promedio y cards cargaron tras el cambio. La suite académica existente siguió pasando. En esta ronda no se modificó una nota Multimedia adicional.
+12. Cartelera: la ruta abrió y mantuvo su responsive; no había publicaciones próximas, por lo que la entrada de flyers quedó validada por código/build, no mediante una card publicada visible.
+13. Tests: npm.cmd test PASS, 133/133 en 30 archivos.
+14. Build: npm.cmd run build PASS.
+15. Diff: git diff --check PASS.
+16. Deuda visual: inspeccionar las animaciones a velocidad normal en un navegador sin reduced-motion y un flyer real cuando Cartelera tenga publicaciones. Sin cambios en modelo académico, importador, correlatividades, RLS, autenticación ni Mi agenda. Las aprobaciones sintéticas se devolvieron a Sin cursar; el upsert puede haber dejado filas pending en esa cuenta de prueba.

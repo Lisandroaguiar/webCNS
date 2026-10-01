@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
+import { markTrajectorySheetChange } from "@/components/academic/academic-sheet-transition";
 
 export type TrajectoryOption = {
   id: string;
@@ -40,6 +41,7 @@ export function TrajectorySwitcher({ options, activeId }: { options: TrajectoryO
           throw new Error("No pudimos actualizar el plan de Multimedia. La trayectoria anterior sigue activa.");
         }
       }
+      markTrajectorySheetChange(id);
       router.refresh();
     } catch (caught) {
       setSelectedId(activeId ?? "");

@@ -14,6 +14,7 @@ import { academicHistoryDetail, academicStatusLabel, enrollmentHistoryItems, val
 import { gradeAverage } from "@/lib/academic/grade-average";
 import { AcademicSubjectCard, type SubjectCardStatus } from "@/components/academic/academic-subject-card";
 import { SubjectDetailDialog } from "@/components/academic/subject-detail-dialog";
+import { AcademicStamp } from "@/components/academic/academic-stamp";
 import { AnalyticDocumentNotice, AnalyticRecognition, AnalyticUploadCaution, AnalyticUploadGuide } from "@/components/academic/analytic-upload-guide";
 
 type Program = { id: string; family: string; degree_type: Enrollment["degreeType"]; name: string };
@@ -38,6 +39,14 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const [subjects, setSubjects] = useState<CurriculumSubject[]>([]);
   const [historyRows, setHistoryRows] = useState<EnrollmentHistory[]>([]);
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [closingEditor, setClosingEditor] = useState(false);
+  const [savedFeedback, setSavedFeedback] = useState(false);
+  const [recentlyPassedSubjectId, setRecentlyPassedSubjectId] = useState<string | null>(null);
+  const [stampYear, setStampYear] = useState<number | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stampTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingDetailId, setPendingDetailId] = useState<string | null>(null);
   const [edit, setEdit] = useState({ status: "pending" as Status, grade: "", date: "" });
   const [filter, setFilter] = useState<"all" | "pending" | "in_progress" | "regular" | "passed">("all");
@@ -94,6 +103,40 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const workshopCount = active ? countChoiceRequirement({ id: "complementarios", curriculumId: active.curriculumId, requiredCount: 4, pool: "complementary_workshops", excludeEnrollmentOrientation: true }, active,
     workshopHistory.filter(row => row.status === "passed").flatMap(row => { const option = workshopOptions.find(item => item.id === row.workshop_option_id && item.verification_status === "verified"); return option ? [{ subjectId: option.id, orientationId: option.orientation_id }] : []; })) : 0;
   const verifiedWorkshopOptions = workshopOptions.filter(option => option.verification_status === "verified" && option.orientation_id !== active?.orientationId && (option.option_kind !== "special" || workshopCount >= 4));
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    if (stampTimer.current) clearTimeout(stampTimer.current);
+    if (markerTimer.current) clearTimeout(markerTimer.current);
+  }, []);
+
+  function closeEditor() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setEditingSubjectId(null);
+      return;
+    }
+    setClosingEditor(true);
+    closeTimer.current = setTimeout(() => { setEditingSubjectId(null); setClosingEditor(false); }, 140);
+  }
+
+  function showSavedFeedback() {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    setSavedFeedback(true);
+    feedbackTimer.current = setTimeout(() => setSavedFeedback(false), 1600);
+  }
+
+  function showYearStamp(year: number) {
+    if (stampTimer.current) clearTimeout(stampTimer.current);
+    setStampYear(year);
+    stampTimer.current = setTimeout(() => setStampYear(null), 2200);
+  }
+
+  function yearCompleted(year: number, rows: EnrollmentHistory[]) {
+    const required = enrollmentHistoryItems(planVisible, rows).filter(item => item.yearLevel === year && item.requirementType !== "choice");
+    return required.length > 0 && required.every(item => item.status === "passed");
+  }
 
   async function reload() {
     const [programResult, planResult, orientationResult, enrollmentResult, subjectResult, workshopOptionResult] = await Promise.all([
@@ -211,8 +254,17 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       const values = validateAcademicEdit(nextEdit);
       const { data, error: saveError } = await supabase.from("user_enrollment_subjects").upsert({ enrollment_id: active.id, curriculum_subject_id: subjectId, ...values, updated_at: new Date().toISOString() }, { onConflict: "enrollment_id,curriculum_subject_id" }).select("curriculum_subject_id,status,grade,passed_at").single();
       if (saveError || !data) throw new Error("No pudimos guardar esta materia.");
-      setHistoryRows(current => [...current.filter(row => row.curriculum_subject_id !== subjectId), data as EnrollmentHistory]);
-      setEditingSubjectId(null);
+      const year = planVisible.find(row => row.id === subjectId)?.yearLevel;
+      const nextRows = [...historyRows.filter(row => row.curriculum_subject_id !== subjectId), data as EnrollmentHistory];
+      if (year && !yearCompleted(year, historyRows) && yearCompleted(year, nextRows)) showYearStamp(year);
+      if (data.status === "passed" && !historyRows.some(row => row.curriculum_subject_id === subjectId && row.status === "passed")) {
+        if (markerTimer.current) clearTimeout(markerTimer.current);
+        setRecentlyPassedSubjectId(subjectId);
+        markerTimer.current = setTimeout(() => setRecentlyPassedSubjectId(null), 410);
+      }
+      setHistoryRows(nextRows);
+      showSavedFeedback();
+      closeEditor();
       router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos guardar esta materia."); }
     setBusy(false);
@@ -240,6 +292,11 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         : supabase.from("user_workshop_history").insert(payload);
       const { data, error: saveError } = await query.select("id,raw_name,status,grade,passed_at,workshop_option_id,curriculum_subject_id").single();
       if (saveError || !data) throw new Error("No pudimos guardar el taller. Revisá si ya está vinculado a otro requisito.");
+      if (slotId && data.status === "passed" && existing?.status !== "passed") {
+        if (markerTimer.current) clearTimeout(markerTimer.current);
+        setRecentlyPassedSubjectId(slotId);
+        markerTimer.current = setTimeout(() => setRecentlyPassedSubjectId(null), 410);
+      }
       setWorkshopHistory(current => [...current.filter(row => row.id !== data.id), data as WorkshopHistory]);
       if (pendingWorkshopId) {
         const { error: resolveError } = await supabase.from("user_pending_academic_records").update({ resolution_status: "confirmed", resolved_at: new Date().toISOString() })
@@ -461,6 +518,8 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   </div>;
 
   return <div className="space-y-6">
+    {savedFeedback && <p role="status" className="pointer-events-none fixed bottom-5 right-5 z-[60] border-2 border-ink bg-cream px-4 py-2 font-bold shadow-[3px_3px_0_0_#221E21]">✓ Guardado</p>}
+    {stampYear !== null && <AcademicStamp year={stampYear} />}
     {error && <p role="alert" className="card border-l-4 border-red-600">{error}</p>}
     {!ready && !error && <p className="card">Cargando trayectorias…</p>}
     {showManagement && <section className="card"><h2 className="font-display text-2xl font-black">Mis trayectorias</h2>
@@ -531,7 +590,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         const linkedOption = linked ? workshopOptions.find(option => option.id === linked.workshop_option_id) : undefined;
         const status = slot ? linked?.status ?? "pending" : item.status;
         const cardStatus: SubjectCardStatus = status === "passed" ? "passed" : status === "regular" ? "regular" : status === "in_progress" ? "in_progress" : "pending";
-        return <AcademicSubjectCard key={item.id} name={item.displayName} status={cardStatus} grade={slot ? linked?.grade : item.grade} detail={linkedOption?.academic_name} onOpen={() => { if (slot) { setWorkshopForm({ existingId: linked?.id ?? "", slotId: slot.id, rawName: linked?.raw_name ?? "", optionId: linked?.workshop_option_id ?? "", status: linked?.status ?? "passed", grade: linked?.grade == null ? "" : String(linked.grade), date: linked?.passed_at ?? "" }); setWorkshopModalOpen(true); } else { setEditingSubjectId(item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); } }} />;
+        return <AcademicSubjectCard key={item.id} name={item.displayName} status={cardStatus} grade={slot ? linked?.grade : item.grade} detail={linkedOption?.academic_name} animateMarker={recentlyPassedSubjectId === item.id} onOpen={() => { if (slot) { setWorkshopForm({ existingId: linked?.id ?? "", slotId: slot.id, rawName: linked?.raw_name ?? "", optionId: linked?.workshop_option_id ?? "", status: linked?.status ?? "passed", grade: linked?.grade == null ? "" : String(linked.grade), date: linked?.passed_at ?? "" }); setWorkshopModalOpen(true); } else { setEditingSubjectId(item.id); setEdit({ status: item.status, grade: item.grade == null ? "" : String(item.grade), date: item.date ?? "" }); } }} />;
       })}</div></section>)}</div>
     </section>}
     {pendingDetailId && (() => {
@@ -548,7 +607,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       const item = items.find(row => row.id === editingSubjectId);
       if (!item) return null;
       const subject = planVisible.find(row => row.id === item.subjectId);
-      return <SubjectDetailDialog title={item.displayName} onClose={() => setEditingSubjectId(null)}>
+      return <SubjectDetailDialog title={item.displayName} closing={closingEditor} onClose={closeEditor}>
         <label className="block text-sm font-bold">Estado<select aria-label={`Estado de ${item.displayName}`} className="input mt-1 w-full" value={edit.status} onChange={event => setEdit(current => ({ ...current, status: event.target.value as Status }))}><option value="pending">Sin cursar</option><option value="in_progress">Cursando</option><option value="regular">Cursada aprobada</option><option value="passed">Aprobada</option></select></label>
         <label className="block text-sm font-bold">Nota opcional<input aria-label={`Nota de ${item.displayName}`} className="input mt-1 w-full" type="number" min="1" max="10" step="0.1" value={edit.grade} onChange={event => setEdit(current => ({ ...current, grade: event.target.value }))} /></label>
         <details><summary className="cursor-pointer text-sm font-bold">Más información</summary><label className="mt-3 block text-sm font-bold">Fecha opcional<input aria-label={`Fecha de ${item.displayName}`} className="input mt-1 w-full" type="date" value={edit.date} onChange={event => setEdit(current => ({ ...current, date: event.target.value }))} /></label>{subject?.reviewStatus === "manual_review" && <p className="mt-3 text-sm text-ink/65">Correlatividades pendientes de revisión: consultá el plan oficial.</p>}<Link className="mt-3 inline-block text-sm font-bold underline" href={`/dashboard/agenda?subject=${encodeURIComponent(item.id)}`}>Agregar a Mi agenda</Link></details>

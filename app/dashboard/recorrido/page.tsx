@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/supabase/current-user";
 import { createClient } from "@/lib/supabase/server";
 import { TrajectoryManager } from "@/components/academic/trajectory-manager";
 import { TrajectorySwitcher, type TrajectoryOption } from "@/components/academic/trajectory-switcher";
+import { AcademicSheetTransition } from "@/components/academic/academic-sheet-transition";
 
 export default async function RecorridoPage({ searchParams }: { searchParams?: { imported?: string } }) {
   const user = await getCurrentUser();
@@ -26,8 +27,8 @@ export default async function RecorridoPage({ searchParams }: { searchParams?: {
   return <><header className="mb-8"><p className="eyebrow">Seguimiento académico</p><h1 className="mt-2 font-display text-4xl font-bold">Mi recorrido</h1><p className="mt-2 text-ink/55">Registrá tu avance y entendé qué materias tenés disponibles.</p></header>
     {searchParams?.imported === "1" && <p role="status" className="card mb-6 border-l-4 border-cronopios-pink font-semibold">Listo, actualizamos tu recorrido.</p>}
     {options.length ? <TrajectorySwitcher options={options} activeId={active?.id ?? null} /> : <Link href="/dashboard/trayectorias" className="button-secondary mb-6 inline-flex">Agregar trayectoria</Link>}
-    {user && (activePlan?.catalog_kind === "curriculum_subjects" || !active)
+    <AcademicSheetTransition activeId={active?.id ?? null}>{user && (activePlan?.catalog_kind === "curriculum_subjects" || !active)
       ? <TrajectoryManager key={`${user.id}:${active?.id ?? "no-active-trajectory"}`} userId={user.id} showManagement={!active} />
-      : active && <MateriasManager key={active.id} managedByEnrollment initialDegree={activeProgram?.degree_type === "profesorado" ? "profesorado" : "licenciatura"} initialCurriculum={activePlan?.legacy_curriculum === "new" ? "new" : "old"} />}
+      : active && <MateriasManager key={active.id} managedByEnrollment initialDegree={activeProgram?.degree_type === "profesorado" ? "profesorado" : "licenciatura"} initialCurriculum={activePlan?.legacy_curriculum === "new" ? "new" : "old"} />}</AcademicSheetTransition>
   </>;
 }

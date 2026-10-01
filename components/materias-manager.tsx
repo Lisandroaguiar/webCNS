@@ -14,6 +14,7 @@ import { type ParsedAnalytic, type ParsedAnalyticSubject } from "@/lib/academic/
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
 import { AcademicSubjectCard, type SubjectCardStatus } from "@/components/academic/academic-subject-card";
 import { SubjectDetailDialog } from "@/components/academic/subject-detail-dialog";
+import { AcademicStamp } from "@/components/academic/academic-stamp";
 import { academicMatchLabel, AnalyticDocumentNotice, AnalyticRecognition, AnalyticUploadCaution, AnalyticUploadGuide } from "@/components/academic/analytic-upload-guide";
 import { gradeAverage } from "@/lib/academic/grade-average";
 
@@ -65,6 +66,14 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
+  const [closingEditor, setClosingEditor] = useState(false);
+  const [savedFeedback, setSavedFeedback] = useState(false);
+  const [recentlyPassedSubjectId, setRecentlyPassedSubjectId] = useState<string | null>(null);
+  const [stampYear, setStampYear] = useState<number | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stampTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [subjectEdit, setSubjectEdit] = useState({ estado: "pendiente" as SubjectRow["estado"], nota: "", fecha_aprobacion: "" });
   const [hasImport, setHasImport] = useState(false);
   const [importMatches, setImportMatches] = useState<MatchedAnalyticSubject[]>([]);
@@ -77,6 +86,35 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
   const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "available" | "in_progress" | "completed" | "blocked">("all");
   const eligibility = useMemo(() => getCourseEligibility({ subjects: catalog.map(item => ({ id: item.id, name: item.nombre, code: item.code, year: item.anio, curriculum: item.curriculum })), userSubjects: history, curriculum, degree }), [catalog, history, curriculum, degree]);
   const eligibilityById = useMemo(() => new Map(eligibility.map(item => [String(item.subject.id), item])), [eligibility]);
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    if (stampTimer.current) clearTimeout(stampTimer.current);
+    if (markerTimer.current) clearTimeout(markerTimer.current);
+  }, []);
+
+  function closeEditor() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setEditingSubjectId(null);
+      return;
+    }
+    setClosingEditor(true);
+    closeTimer.current = setTimeout(() => { setEditingSubjectId(null); setClosingEditor(false); }, 140);
+  }
+
+  function showSavedFeedback() {
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    setSavedFeedback(true);
+    feedbackTimer.current = setTimeout(() => setSavedFeedback(false), 1600);
+  }
+
+  function showYearStamp(year: number) {
+    if (stampTimer.current) clearTimeout(stampTimer.current);
+    setStampYear(year);
+    stampTimer.current = setTimeout(() => setStampYear(null), 2200);
+  }
 
   useEffect(() => {
     async function loadCatalogAndHistory() {
@@ -222,9 +260,20 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
       if (saveError) throw new Error("No pudimos guardar esta materia. Intentá nuevamente.");
       const { data: refreshed, error: refreshError } = await supabase.from("user_subjects").select("subject_id,status,grade,passed_at").eq("user_id", user.id).eq("subject_id", subject.id).maybeSingle();
       if (refreshError || !refreshed) throw new Error("El guardado se envió, pero no pudimos confirmarlo. Recargá la página.");
-      setHistory(current => [...current.filter(item => String(item.subject_id) !== String(subject.id)), refreshed as SavedHistory]);
+      const yearSubjects = catalog.filter(item => item.anio === subject.anio);
+      const wasComplete = yearSubjects.length > 0 && yearSubjects.every(item => history.some(row => String(row.subject_id) === String(item.id) && row.status === "passed"));
+      const nextHistory = [...history.filter(item => String(item.subject_id) !== String(subject.id)), refreshed as SavedHistory];
+      const isComplete = yearSubjects.length > 0 && yearSubjects.every(item => nextHistory.some(row => String(row.subject_id) === String(item.id) && row.status === "passed"));
+      if (subject.anio && !wasComplete && isComplete) showYearStamp(subject.anio);
+      if (status === "passed" && !history.some(row => String(row.subject_id) === String(subject.id) && row.status === "passed")) {
+        if (markerTimer.current) clearTimeout(markerTimer.current);
+        setRecentlyPassedSubjectId(String(subject.id));
+        markerTimer.current = setTimeout(() => setRecentlyPassedSubjectId(null), 410);
+      }
+      setHistory(nextHistory);
       setRows(current => current.map(row => String(row.id) === String(subject.id) ? { ...row, ...subjectEdit, detected: status !== "pending" } : row));
-      setEditingSubjectId(null);
+      showSavedFeedback();
+      closeEditor();
       setMessage("Materia guardada correctamente.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No pudimos guardar esta materia.");
@@ -425,6 +474,8 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
   }
 
   return <div className="space-y-6">
+    {savedFeedback && <p role="status" className="pointer-events-none fixed bottom-5 right-5 z-[60] border-2 border-ink bg-cream px-4 py-2 font-bold shadow-[3px_3px_0_0_#221E21]">✓ Guardado</p>}
+    {stampYear !== null && <AcademicStamp year={stampYear} />}
     {!managedByEnrollment && <div className="card">
       <p className="eyebrow">Plan de estudios</p>
       <label className="mt-2 block font-display text-xl font-bold" htmlFor="degree">Elegí tu carrera</label>
@@ -504,7 +555,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
                 const currentStatus = row?.estado ?? (saved?.status === "passed" ? "aprobada" : saved?.status === "regular" ? "regular" : "pendiente");
                 const cardStatus: SubjectCardStatus = currentStatus === "aprobada" ? "passed" : currentStatus === "regular" ? "regular" : courseStatus?.status === "available" ? "available" : courseStatus?.status === "unknown" ? "review" : "pending";
                 const grade = row?.nota || saved?.grade || null;
-                return <AcademicSubjectCard key={subject.id} name={subject.nombre} status={cardStatus} grade={grade} onOpen={() => openSubject(subject)} />;
+                return <AcademicSubjectCard key={subject.id} name={subject.nombre} status={cardStatus} grade={grade} animateMarker={recentlyPassedSubjectId === String(subject.id)} onOpen={() => openSubject(subject)} />;
               })}
             </div>
           </section>;
@@ -518,7 +569,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
           const saved = savedFor(required);
           return current?.estado !== "aprobada" && current?.estado !== "regular" && saved?.status !== "passed" && saved?.status !== "regular";
         });
-        return <SubjectDetailDialog title={subject.nombre} onClose={() => setEditingSubjectId(null)}>
+        return <SubjectDetailDialog title={subject.nombre} closing={closingEditor} onClose={closeEditor}>
           <label className="block text-sm font-bold">Estado<select aria-label={`Estado de ${subject.nombre}`} className="input mt-1 w-full" value={subjectEdit.estado} onChange={event => setSubjectEdit(current => ({ ...current, estado: event.target.value as SubjectRow["estado"] }))}><option value="pendiente">Sin cursar</option><option value="regular">Cursada aprobada</option><option value="aprobada">Aprobada</option></select></label>
           <label className="block text-sm font-bold">Nota opcional<input aria-label={`Nota de ${subject.nombre}`} className="input mt-1 w-full" type="number" min="1" max="10" step="0.1" value={subjectEdit.nota} onChange={event => setSubjectEdit(current => ({ ...current, nota: event.target.value }))} /></label>
           <details><summary className="cursor-pointer text-sm font-bold">Más información</summary><label className="mt-3 block text-sm font-bold">Fecha opcional<input aria-label={`Fecha de ${subject.nombre}`} className="input mt-1 w-full" type="date" value={subjectEdit.fecha_aprobacion} onChange={event => setSubjectEdit(current => ({ ...current, fecha_aprobacion: event.target.value }))} /></label>{missingRequirements.length > 0 && <p className="mt-3 text-sm text-ink/65">Para cursarla necesitás: {missingRequirements.map(required => required.nombre).join(", ")}.</p>}<Link href={`/dashboard/agenda?subject=${encodeURIComponent(String(subject.id))}`} className="mt-3 inline-block text-sm font-bold underline">Agregar a Mi agenda</Link></details>

@@ -41,10 +41,10 @@ export function ScrapbookCard({
 }: ScrapbookCardProps) {
   const embedUrl = instagramEmbedUrl(imageUrl);
   return (
-    <article className={`relative min-w-0 border-2 border-black p-5 pt-7 shadow-brutal transition-transform hover:-translate-y-1 ${accentClasses[accent]}`}>
+    <article className={`scrapbook-card relative min-w-0 border-2 border-black p-5 pt-7 shadow-brutal ${accentClasses[accent]}`}>
       <span
         aria-hidden="true"
-        className="absolute -top-3 left-1/2 h-7 w-24 -translate-x-1/2 rotate-[-3deg] border border-black/20 bg-cyan/75 shadow-sm"
+        className="scrapbook-card__tape absolute -top-3 left-1/2 h-7 w-24 -translate-x-1/2 rotate-[-3deg] border border-black/20 bg-cyan/75 shadow-sm"
       />
       <div className="flex items-start justify-between gap-4">
         <span className="status-badge">
