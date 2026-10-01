@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
@@ -12,6 +12,7 @@ import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
 import { academicHistoryDetail, academicStatusLabel, enrollmentHistoryItems, validateAcademicEdit, type AcademicStatus } from "@/lib/academic/history-item";
 import { AcademicSubjectCard, type SubjectCardStatus } from "@/components/academic/academic-subject-card";
 import { SubjectDetailDialog } from "@/components/academic/subject-detail-dialog";
+import { AnalyticDocumentNotice, AnalyticRecognition, AnalyticUploadCaution, AnalyticUploadGuide } from "@/components/academic/analytic-upload-guide";
 
 type Program = { id: string; family: string; degree_type: Enrollment["degreeType"]; name: string };
 type Plan = { id: string; family: string; display_name: string; catalog_kind: "legacy_subjects" | "curriculum_subjects"; requires_orientation: boolean; legacy_curriculum: "old" | "new" | null };
@@ -57,6 +58,8 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [analyticFile, setAnalyticFile] = useState<File | null>(null);
+  const analyticFileInputRef = useRef<HTMLInputElement>(null);
+  const [analyticDocumentPreview, setAnalyticDocumentPreview] = useState<ParsedAnalytic | null>(null);
   const [analyticImportId, setAnalyticImportId] = useState<string | null>(null);
   const [analyticMatches, setAnalyticMatches] = useState<ReviewRow[]>([]);
   const [analyticSummary, setAnalyticSummary] = useState<{ approved?: number; electives?: number; detected: number; warnings: string[] } | null>(null);
@@ -276,14 +279,8 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
     setBusy(false);
   }
 
-  async function parseAnalytic() {
-    if (!analyticFile || !active || activePlan?.catalog_kind !== "curriculum_subjects") return;
-    setBusy(true); setError(""); setAnalyticMatches([]); setAnalyticSummary(null); setAnalyticConfirmed(false); setAnalyticImportId(null);
-    try {
-      const form = new FormData(); form.append("file", analyticFile);
-      const response = await fetch("/api/parse-analitico", { method: "POST", body: form });
-      const parsed = await response.json() as ParsedAnalytic & { error?: string };
-      if (!response.ok) throw new Error(parsed.error ?? "No pudimos leer el analítico.");
+  async function reviewParsedAnalytic(parsed: ParsedAnalytic) {
+      if (!active || activePlan?.catalog_kind !== "curriculum_subjects") return;
       if (parsed.detectedProgramFamily && parsed.detectedProgramFamily !== activeProgram?.family) throw new Error("El documento parece corresponder a otra carrera.");
       if (parsed.detectedPlanYear && !active.curriculumId.endsWith(String(parsed.detectedPlanYear))) throw new Error("El plan detectado no coincide con la trayectoria activa.");
       if (parsed.detectedTitle && parsed.detectedTitle !== active.degreeType) throw new Error("El título detectado no coincide con la trayectoria activa.");
@@ -300,7 +297,27 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       setAnalyticMatches(classifyPlasticAnalyticRows(matchAnalyticSubjects(parsed.subjects, visible.map(row => ({ id: row.id, nombre: row.officialName, requirementKind: row.requirementKind })),
         (aliases ?? []).map(row => ({ subject_id: row.curriculum_subject_id, alias: row.alias, verified: row.verified })),
         { curriculumId: active.curriculumId, orientationId: active.orientationId }), workshopOptions.filter((option): option is WorkshopOption & { orientation_id: string } => option.option_kind === "orientation" && option.orientation_id !== null), active.orientationId));
+  }
+
+  async function parseAnalytic() {
+    if (!analyticFile || !active || activePlan?.catalog_kind !== "curriculum_subjects") return;
+    setBusy(true); setError(""); setAnalyticMatches([]); setAnalyticSummary(null); setAnalyticConfirmed(false); setAnalyticImportId(null);
+    try {
+      const form = new FormData(); form.append("file", analyticFile);
+      const response = await fetch("/api/parse-analitico", { method: "POST", body: form });
+      const parsed = await response.json() as ParsedAnalytic & { error?: string };
+      if (!response.ok) throw new Error(parsed.error ?? "No pudimos leer el analítico.");
+      setAnalyticDocumentPreview(parsed);
+      if (parsed.documentType === "ANALYTIC_WITH_REGULARIZED") await reviewParsedAnalytic(parsed);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos leer el analítico."); }
+    finally { setBusy(false); }
+  }
+
+  async function tryOtherAnalytic() {
+    if (!analyticDocumentPreview?.subjects.length) return;
+    setBusy(true); setError("");
+    try { await reviewParsedAnalytic(analyticDocumentPreview); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos leer el analítico."); }
     finally { setBusy(false); }
   }
 
@@ -401,7 +418,9 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         <div className="mt-3 space-y-2">{openSubjectPending.map(row => <AcademicSubjectCard key={row.id} name={row.raw_name} status="review" grade={row.grade} onOpen={() => setPendingDetailId(row.id)} />)}</div><Link href="/dashboard/revisar-recorrido" className="mt-4 inline-block text-sm font-bold underline">Revisar todas</Link>
       </section>}
       {ignoredPending.length > 0 && <details className="card mt-4" open={showIgnored} onToggle={event => setShowIgnored(event.currentTarget.open)}><summary className="cursor-pointer font-bold">Ver registros ignorados · {ignoredPending.length}</summary><div className="mt-3 space-y-3">{ignoredPending.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-ink/20 pt-2"><span className="[overflow-wrap:anywhere]">{row.raw_name}</span><button type="button" disabled={busy} className="button-secondary" onClick={() => void changePendingResolution(row.id, "pending")}>Restaurar a pendientes</button></div>)}</div></details>}
-      <div className="card mt-5"><h3 className="font-display text-xl font-black">Subir analítico</h3><p className="mt-1 text-sm text-ink/65">El documento se usa para buscar materias dentro de esta trayectoria. Confirmá título, orientación y plan antes de guardar.</p><input className="input mt-3" type="file" accept=".pdf,application/pdf" onChange={event => setAnalyticFile(event.target.files?.[0] ?? null)} /><button type="button" disabled={busy || !analyticFile} onClick={() => void parseAnalytic()} className="button-secondary mt-3">Revisar materias</button>
+      <div className="card mt-5"><h3 className="font-display text-xl font-black">Subir analítico</h3><div className="mt-3"><AnalyticUploadGuide /></div><label className="mt-3 block text-sm font-bold">Subir analítico<input ref={analyticFileInputRef} className="input mt-1" type="file" accept=".pdf,application/pdf" onChange={event => { setAnalyticFile(event.target.files?.[0] ?? null); setAnalyticDocumentPreview(null); }} /></label><button type="button" disabled={busy || !analyticFile} onClick={() => void parseAnalytic()} className="button-secondary mt-3">Revisar materias</button><AnalyticUploadCaution />
+        {analyticDocumentPreview && analyticDocumentPreview.documentType !== "ANALYTIC_WITH_REGULARIZED" && <AnalyticDocumentNotice documentType={analyticDocumentPreview.documentType} subjectsFound={analyticDocumentPreview.subjects.length} textPresent={analyticDocumentPreview.textPresent} onTry={() => void tryOtherAnalytic()} onChooseAnother={() => { setAnalyticFile(null); setAnalyticDocumentPreview(null); if (analyticFileInputRef.current) { analyticFileInputRef.current.value = ""; analyticFileInputRef.current.click(); } }} />}
+        {analyticDocumentPreview?.documentType === "ANALYTIC_WITH_REGULARIZED" && <AnalyticRecognition parsed={analyticDocumentPreview} />}
         {analyticSummary && <div className="mt-4 text-sm"><p>Analítico procesado: {analyticSummary.detected} materias detectadas. {analyticMatches.filter(row => row.subjectId && !row.ignored).length} reconocidas y {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} necesitan confirmación.</p><p className="mt-1 text-ink/65">Podés guardar las reconocidas y revisar las demás después.</p>{analyticSummary.warnings.map(warning => <p key={warning} className="mt-2 text-amber-900">{warning}</p>)}</div>}
         {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><label className="mb-3 flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> <span>Confirmo que este analítico corresponde a {activeProgram?.name}, orientación {activeOrientation?.name}, {plans.find(plan => plan.id === active.curriculumId)?.display_name}.</span></label><div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar y ver mi recorrido</button><a href="#revisar-analitico" className="button-secondary">Revisar las {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} ahora</a><Link href="/dashboard/recorrido" className="button-secondary">Volver a mi recorrido sin guardar</Link></div><div id="revisar-analitico"><h4 className="font-bold">Revisión del analítico</h4><p className="text-sm text-ink/65">No encontramos una coincidencia segura para algunas filas. Podés revisarlas después; todavía no afectan tu recorrido.</p>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs text-ink/65">{row.workshopSelected ? "Taller real" : ["EXACT", "ALIAS", "CONTEXT"].includes(row.kind) ? "Reconocida" : "Necesita confirmación"}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", workshopOptionId: event.target.value === "__workshop" ? item.workshopOptionId : undefined, ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value), manualOverride: true } : item))}><option value="">Dejar pendiente de confirmar</option>{needsWorkshopOrientationReview(row.rawName) && workshopStorageReady && <option value="__workshop">Guardar taller real</option>}<option value="__ignore">Ignorar fila</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}</div></div>}
       </div>

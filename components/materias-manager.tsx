@@ -14,6 +14,7 @@ import { type ParsedAnalytic, type ParsedAnalyticSubject } from "@/lib/academic/
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
 import { AcademicSubjectCard, type SubjectCardStatus } from "@/components/academic/academic-subject-card";
 import { SubjectDetailDialog } from "@/components/academic/subject-detail-dialog";
+import { academicMatchLabel, AnalyticDocumentNotice, AnalyticRecognition, AnalyticUploadCaution, AnalyticUploadGuide } from "@/components/academic/analytic-upload-guide";
 
 type Subject = {
   id: string | number;
@@ -51,6 +52,8 @@ function toRow(subject: Subject, detected = false): SubjectRow {
 export function MateriasManager({ managedByEnrollment = false, initialDegree = "licenciatura", initialCurriculum = "old" }: { managedByEnrollment?: boolean; initialDegree?: DegreeValue; initialCurriculum?: "old" | "new" }) {
   const supabase = useMemo(() => createClient(), []);
   const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pdfPreview, setPdfPreview] = useState<ParsedAnalytic | null>(null);
   const [catalog, setCatalog] = useState<Subject[]>([]);
   const [rows, setRows] = useState<SubjectRow[]>([]);
   const [history, setHistory] = useState<SavedHistory[]>([]);
@@ -229,7 +232,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
     }
   }
 
-  async function processFile() {
+  async function processFile(approvedPdf?: ParsedAnalytic) {
     if (!file) return;
     setLoading(true);
     setError("");
@@ -237,6 +240,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
     setImportMatches([]);
     setImportWarnings([]);
     setImportPlanConfirmed(false);
+    setHasImport(false);
     try {
       if (!catalog.length) {
         setError("El plan de estudios está vacío en Supabase. Ejecutá supabase/seed-subjects.sql en el SQL Editor y recargá la página.");
@@ -248,20 +252,26 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
       let parsedPdf: ParsedAnalytic | null = null;
       let pdfTextPresent = true;
       if (isPdf) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const response = await fetch("/api/parse-analitico", { method: "POST", body: formData });
-        const responseText = await response.text();
-        let result: Partial<ParsedAnalytic> & { error?: string; textPresent?: boolean };
-        try {
-          result = JSON.parse(responseText) as Partial<ParsedAnalytic> & { error?: string; textPresent?: boolean };
-        } catch {
-          throw new Error(`El servidor devolvió una respuesta no válida (HTTP ${response.status}). Reiniciá la aplicación e intentá nuevamente.`);
+        let result: Partial<ParsedAnalytic> & { error?: string; textPresent?: boolean } = approvedPdf ?? {};
+        if (!approvedPdf) {
+          const formData = new FormData();
+          formData.append("file", file);
+          const response = await fetch("/api/parse-analitico", { method: "POST", body: formData });
+          const responseText = await response.text();
+          try {
+            result = JSON.parse(responseText) as Partial<ParsedAnalytic> & { error?: string; textPresent?: boolean };
+          } catch {
+            throw new Error(`El servidor devolvió una respuesta no válida (HTTP ${response.status}). Reiniciá la aplicación e intentá nuevamente.`);
+          }
+          if (!response.ok) throw new Error(result.error || "No se pudo extraer el texto del PDF.");
         }
-        if (!response.ok) throw new Error(result.error || "No se pudo extraer el texto del PDF.");
         pdfSubjects = result.subjects ?? [];
-        pdfTextPresent = result.textPresent ?? false;
+        pdfTextPresent = approvedPdf ? true : result.textPresent ?? false;
         parsedPdf = result as ParsedAnalytic;
+        if (!approvedPdf) {
+          setPdfPreview(parsedPdf);
+          if (parsedPdf.documentType !== "ANALYTIC_WITH_REGULARIZED") return;
+        }
       } else if (file.type.startsWith("text/") || /\.(csv|txt)$/i.test(file.name)) {
         content = await file.text();
       }
@@ -428,10 +438,11 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
     </div>}
     <div className="card">
       <h2 className="font-display text-xl font-bold">Importar analítico</h2>
-      <p className="mt-2 text-sm text-ink/60">Subí un PDF con texto seleccionable, CSV o TXT. Vas a poder revisar todo antes de guardar.</p>
+      <div className="mt-3"><AnalyticUploadGuide /></div>
+      <p className="mt-2 text-xs text-ink/60">También podés cargar CSV o TXT; vas a revisar todo antes de guardar.</p>
       <label className="mt-5 flex cursor-pointer items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-ink/15 p-8 text-sm text-ink/60 hover:border-coral">
-        <Upload size={20} />{file ? file.name : "Elegir archivo"}
-        <input className="hidden" type="file" accept=".pdf,.csv,.txt,text/plain,text/csv,application/pdf" onChange={event => { setFile(event.target.files?.[0] || null); setMessage(""); setError(""); }} />
+        <Upload size={20} />{file ? file.name : "Subir analítico"}
+        <input ref={fileInputRef} className="hidden" type="file" accept=".pdf,.csv,.txt,text/plain,text/csv,application/pdf" onChange={event => { setFile(event.target.files?.[0] || null); setPdfPreview(null); setHasImport(false); setMessage(""); setError(""); }} />
       </label>
       <div className="flex flex-wrap gap-3">
         <button disabled={!file || loading} onClick={() => void processFile()} className="button-secondary mt-4">
@@ -439,6 +450,9 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
         </button>
         {hasImport && rows.length > 0 && <button disabled={saving} onClick={() => void saveRows()} className="button-primary mt-4">{saving ? "Guardando..." : "Guardar materias"}</button>}
       </div>
+      <AnalyticUploadCaution />
+      {pdfPreview && pdfPreview.documentType !== "ANALYTIC_WITH_REGULARIZED" && <AnalyticDocumentNotice documentType={pdfPreview.documentType} subjectsFound={pdfPreview.subjects.length} textPresent={pdfPreview.textPresent} onTry={() => void processFile(pdfPreview)} onChooseAnother={() => { setFile(null); setPdfPreview(null); if (fileInputRef.current) { fileInputRef.current.value = ""; fileInputRef.current.click(); } }} />}
+      {pdfPreview?.documentType === "ANALYTIC_WITH_REGULARIZED" && <AnalyticRecognition parsed={pdfPreview} />}
       {message && <p className="mt-3 text-sm font-medium text-green-700">{message}</p>}
       {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
     </div>
@@ -449,7 +463,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
       {importWarnings.map(warning => <p key={warning} className="mt-2 border-l-4 border-amber-500 bg-amber-50 p-2 text-sm">{warning}</p>)}
       <label className="mt-4 flex items-start gap-2 text-sm font-bold"><input type="checkbox" checked={importPlanConfirmed} onChange={event => setImportPlanConfirmed(event.target.checked)} /> Confirmé que este analítico corresponde a la carrera y plan elegidos arriba.</label>
       <div className="mt-4 space-y-3">{importMatches.map((item, index) => <div key={`${item.rawName}-${index}`} className="border-l-4 border-ink/30 bg-cronopios-paper p-3">
-        <p className="font-bold">{item.rawName} <span className="status-badge ml-2">{item.kind}</span></p>
+        <p className="font-bold">{item.rawName} <span className="status-badge ml-2">{academicMatchLabel(item.kind)}</span></p>
         {item.candidateId && <p className="mt-1 text-xs">Sugerencia: {catalog.find(subject => String(subject.id) === String(item.candidateId))?.nombre}. Confirmala solo si coincide.</p>}
         <label className="mt-2 block text-sm font-bold">Materia del plan<select className="input mt-1" value={item.ignored ? "__ignore" : item.subjectId ?? ""} onChange={event => resolveImportMatch(index, event.target.value)}><option value="">Elegir materia</option><option value="__ignore">Ignorar esta fila</option>{catalog.map(subject => <option key={subject.id} value={subject.id}>{subject.nombre}</option>)}</select></label>
       </div>)}</div>

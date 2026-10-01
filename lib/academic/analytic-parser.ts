@@ -1,7 +1,10 @@
 import { detectCurriculum, detectDegree, type CurriculumValue, type DegreeValue } from "@/lib/academic/curriculum";
 
 export type ParsedAnalyticSubject = { rawName: string; grade?: number; passedAt?: string; status?: "passed" | "regular" | "pending"; section?: "elective" };
+export type AcademicDocumentType = "ANALYTIC_WITH_REGULARIZED" | "ACADEMIC_HISTORY" | "UNKNOWN_SIU_DOCUMENT" | "UNKNOWN_PDF";
 export type ParsedAnalytic = {
+  documentType: AcademicDocumentType;
+  textPresent?: boolean;
   detectedDegree?: DegreeValue; detectedCurriculum?: CurriculumValue;
   detectedProgramFamily?: "Artes Plásticas" | "Diseño Multimedial";
   detectedPlanYear?: 2006 | 2023 | 2024;
@@ -18,6 +21,14 @@ export function normalizeAcademicSubjectName(name: string) {
   return normalized.replace(/\b(i|ii|iii|iv|v|vi)$/, level => roman[level]);
 }
 export const normalizeSubjectName = normalizeAcademicSubjectName;
+export function classifyAcademicDocument(text: string, recognizedRows: number): AcademicDocumentType {
+  const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (recognizedRows === 0) return /\bsiu\b|guarani|analitico|historia\s+academica/.test(normalized) ? "UNKNOWN_SIU_DOCUMENT" : "UNKNOWN_PDF";
+  if (/analitico\s+con\s+regularizadas/.test(normalized) || (/\banalitico\b/.test(normalized) && /\bregularizadas\b/.test(normalized))) return "ANALYTIC_WITH_REGULARIZED";
+  if (/historia\s+academica/.test(normalized)) return "ACADEMIC_HISTORY";
+  if (/\bsiu\b|guarani|constancias\s+y\s+certificados/.test(normalized)) return "UNKNOWN_SIU_DOCUMENT";
+  return "UNKNOWN_PDF";
+}
 const plasticOrientations = [
   ["dibujo", "dibujo"], ["grabado y arte impreso", "grabado_arte_impreso"],
   ["pintura", "pintura"], ["ceramica", "ceramica"], ["escenografia", "escenografia"],
@@ -76,6 +87,7 @@ export function parseAnalyticDocument(text: string): ParsedAnalytic {
   }
   if (!subjects.length) warnings.push("No encontramos materias en el analítico.");
   return {
+    documentType: classifyAcademicDocument(text, subjects.length),
     detectedDegree: detectDegree(text), detectedCurriculum: detectCurriculum(text), ...detectAcademicContext(text), subjects, warnings: Array.from(new Set(warnings)),
     reportedApprovedCount: metadataNumber(text, /total\s+(?:de\s+)?asignaturas\s+aprobadas\s*[:\-]?\s*(\d+)/i),
     reportedElectiveCount: metadataNumber(text, /total\s+de\s+cr[eé]ditos\s*\/\s*optativas\s*[:\-]?\s*(\d+)/i),
