@@ -7,9 +7,11 @@ import { createClient } from "@/lib/supabase/browser";
 import { subjectsForEnrollment, planSubjectsForEnrollment, isComplementaryWorkshopSlot, workshopOptionFitsSlot, linkedWorkshopsBySlot, countKnownProgress, countChoiceRequirement, needsWorkshopOrientationReview, isNamedWorkshopActivity, type CurriculumSubject, type Enrollment } from "@/lib/academic/multicarrera";
 import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academic/match-analytic-subjects";
 import { classifyPlasticAnalyticRows, partitionAnalyticReview } from "@/lib/academic/analytic-review";
-import type { ParsedAnalytic } from "@/lib/academic/analytic-parser";
+import { detectAnalyticTrajectory, findMatchingEnrollment, type DetectedTrajectory } from "@/lib/academic/analytic-trajectory";
+import { normalizeAcademicSubjectName, type ParsedAnalytic } from "@/lib/academic/analytic-parser";
 import { saveAcademicProfile } from "@/lib/supabase/academic-profile";
 import { academicHistoryDetail, academicStatusLabel, enrollmentHistoryItems, validateAcademicEdit, type AcademicStatus } from "@/lib/academic/history-item";
+import { gradeAverage } from "@/lib/academic/grade-average";
 import { AcademicSubjectCard, type SubjectCardStatus } from "@/components/academic/academic-subject-card";
 import { SubjectDetailDialog } from "@/components/academic/subject-detail-dialog";
 import { AnalyticDocumentNotice, AnalyticRecognition, AnalyticUploadCaution, AnalyticUploadGuide } from "@/components/academic/analytic-upload-guide";
@@ -25,7 +27,7 @@ type EnrollmentHistory = { curriculum_subject_id: string; status: Status; grade:
 type PendingAcademicRecord = { id: string; raw_name: string; status: Status; grade: number | null; passed_at: string | null; match_kind: string; record_type: "subject" | "workshop"; suggested_subject_id: string | null; resolution_status: "pending" | "ignored" | "confirmed" };
 type WorkshopOption = { id: string; orientation_id: string | null; option_kind: "orientation" | "special"; academic_name: string; siu_name: string | null; verification_status: string };
 
-export function TrajectoryManager({ userId, reviewOnly = false, showManagement = true }: { userId: string; reviewOnly?: boolean; showManagement?: boolean }) {
+export function TrajectoryManager({ userId, reviewOnly = false, showManagement = true, initialParsed }: { userId: string; reviewOnly?: boolean; showManagement?: boolean; initialParsed?: ParsedAnalytic | null }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -42,6 +44,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const [workshopHistory, setWorkshopHistory] = useState<WorkshopHistory[]>([]);
   const [workshopModalOpen, setWorkshopModalOpen] = useState(false);
   const [workshopForm, setWorkshopForm] = useState({ existingId: "", slotId: "", rawName: "", optionId: "", status: "passed" as Status, grade: "", date: "" });
+  const [pendingWorkshopId, setPendingWorkshopId] = useState<string | null>(null);
   const [pendingRecords, setPendingRecords] = useState<PendingAcademicRecord[]>([]);
   const [pendingChoices, setPendingChoices] = useState<Record<string, string>>({});
   const [showIgnored, setShowIgnored] = useState(false);
@@ -59,15 +62,19 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const [ready, setReady] = useState(false);
   const [analyticFile, setAnalyticFile] = useState<File | null>(null);
   const analyticFileInputRef = useRef<HTMLInputElement>(null);
+  const initialParsedHandled = useRef(false);
   const [analyticDocumentPreview, setAnalyticDocumentPreview] = useState<ParsedAnalytic | null>(null);
   const [analyticImportId, setAnalyticImportId] = useState<string | null>(null);
   const [analyticMatches, setAnalyticMatches] = useState<ReviewRow[]>([]);
   const [analyticSummary, setAnalyticSummary] = useState<{ approved?: number; electives?: number; detected: number; warnings: string[] } | null>(null);
   const [analyticConfirmed, setAnalyticConfirmed] = useState(false);
+  const [analyticTarget, setAnalyticTarget] = useState<DetectedTrajectory | null>(null);
+  const [analyticOpen, setAnalyticOpen] = useState(true);
+  const [lastImportComplete, setLastImportComplete] = useState(false);
   const currentEnrollments = enrollments.filter(row => !row.deletedAt);
   const deletedEnrollments = enrollments.filter(row => row.deletedAt);
   const actualActive = currentEnrollments.find(row => row.isActive);
-  const active = currentEnrollments.find(row => row.id === selectedEnrollmentId) ?? actualActive ?? currentEnrollments[0];
+  const active = currentEnrollments.find(row => row.id === selectedEnrollmentId) ?? actualActive ?? (currentEnrollments.length === 1 ? currentEnrollments[0] : undefined);
   const openPending = pendingRecords.filter(row => row.resolution_status === "pending");
   const openSubjectPending = openPending.filter(row => row.record_type !== "workshop");
   const openWorkshopPending = openPending.filter(row => row.record_type === "workshop");
@@ -76,13 +83,14 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   const activePlan = plans.find(row => row.id === active?.curriculumId);
   const activeOrientation = orientations.find(row => row.id === active?.orientationId);
   const visible = active ? subjectsForEnrollment(subjects, active) : [];
+  const importVisible = analyticTarget ? subjectsForEnrollment(subjects, { id: "", ...analyticTarget }) : visible;
   const planVisible = active ? planSubjectsForEnrollment(subjects, active) : [];
   const items = enrollmentHistoryItems(planVisible, historyRows);
   const workshopSlots = planVisible.filter(isComplementaryWorkshopSlot);
   const linkedWorkshops = active ? linkedWorkshopsBySlot(workshopHistory, workshopOptions, active) : new Map<string, WorkshopHistory>();
-  const unplacedWorkshops = workshopHistory.filter(row => !row.curriculum_subject_id && row.workshop_option_id && workshopOptions.some(option => option.id === row.workshop_option_id && option.verification_status === "verified" && option.orientation_id !== active?.orientationId));
   const history = Object.fromEntries(historyRows.map(row => [row.curriculum_subject_id, row.status])) as Record<string, Status>;
   const progress = active ? countKnownProgress(subjects, active, history) : null;
+  const average = gradeAverage(historyRows);
   const workshopCount = active ? countChoiceRequirement({ id: "complementarios", curriculumId: active.curriculumId, requiredCount: 4, pool: "complementary_workshops", excludeEnrollmentOrientation: true }, active,
     workshopHistory.filter(row => row.status === "passed").flatMap(row => { const option = workshopOptions.find(item => item.id === row.workshop_option_id && item.verification_status === "verified"); return option ? [{ subjectId: option.id, orientationId: option.orientation_id }] : []; })) : 0;
   const verifiedWorkshopOptions = workshopOptions.filter(option => option.verification_status === "verified" && option.orientation_id !== active?.orientationId && (option.option_kind !== "special" || workshopCount >= 4));
@@ -108,12 +116,35 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
     setReady(true);
   }
 
-  useEffect(() => { void reload(); }, [supabase, userId]);
+  useEffect(() => {
+    setReady(false);
+    setEnrollments([]);
+    setSelectedEnrollmentId(null);
+    void reload();
+  }, [supabase, userId]);
+  useEffect(() => {
+    if (!ready || !initialParsed || initialParsedHandled.current) return;
+    initialParsedHandled.current = true;
+    setAnalyticDocumentPreview(initialParsed);
+    const detected = detectAnalyticTrajectory(initialParsed, programs, plans, orientations);
+    if (!detected) {
+      setError("No pudimos identificar el título, plan y orientación del analítico. Revisalos antes de guardar.");
+      return;
+    }
+    if (findMatchingEnrollment(detected, deletedEnrollments)) {
+      setError("Esta trayectoria está eliminada. Restaurala desde Mis trayectorias antes de importar el analítico.");
+      return;
+    }
+    setAnalyticTarget(detected);
+    setAnalyticOpen(true);
+  }, [ready, initialParsed, programs, plans, orientations, enrollments]);
   useEffect(() => {
     setEditingSubjectId(null);
     setHistoryRows([]);
     setPendingRecords([]);
     setWorkshopHistory([]);
+    setLastImportComplete(false);
+    setAnalyticOpen(true);
     if (!active) return;
     let cancelled = false;
     void supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status,grade,passed_at").eq("enrollment_id", active.id)
@@ -122,8 +153,10 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       .then(({ data, error }) => { if (cancelled) return; if (error) setWorkshopStorageReady(false); else setWorkshopHistory((data ?? []) as WorkshopHistory[]); });
     void supabase.from("user_pending_academic_records").select("id,raw_name,status,grade,passed_at,match_kind,record_type,suggested_subject_id,resolution_status").eq("enrollment_id", active.id)
       .then(({ data, error }) => { if (!cancelled && !error) setPendingRecords((data ?? []) as PendingAcademicRecord[]); });
+    void supabase.from("user_academic_import_matches").select("enrollment_id", { count: "exact", head: true }).eq("enrollment_id", active.id)
+      .then(({ count, error }) => { if (!cancelled && !error && (count ?? 0) > 0) { setLastImportComplete(true); if (!initialParsed) setAnalyticOpen(false); } });
     return () => { cancelled = true; };
-  }, [active?.id, supabase]);
+  }, [active?.id, supabase, initialParsed]);
 
   async function createEnrollment() {
     setBusy(true); setError("");
@@ -142,8 +175,13 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         id = data.id;
       }
       if (!id) throw new Error("No pudimos identificar la trayectoria creada.");
+      const { error: activateError } = await supabase.rpc("activate_user_enrollment", { selected_id: id });
+      if (activateError) throw new Error("La trayectoria se creó, pero no pudimos activarla. Elegila desde Mis trayectorias.");
+      if (plan.catalog_kind === "legacy_subjects" && plan.legacy_curriculum) await saveAcademicProfile(supabase, program.degree_type, plan.legacy_curriculum);
       setSelectedEnrollmentId(id);
       await reload();
+      router.push("/dashboard/recorrido");
+      router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos guardar la trayectoria."); }
     finally { setBusy(false); }
   }
@@ -190,23 +228,43 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       if (option.option_kind === "special" && workshopCount < 4) throw new Error("Este taller se habilita después de aprobar cuatro talleres complementarios de distintas orientaciones.");
       if (chosenSlot && !workshopOptionFitsSlot(chosenSlot.officialName, option.academic_name, option.option_kind)) throw new Error("Ese taller no corresponde a este lugar del plan.");
       const existing = workshopHistory.find(row => row.id === workshopForm.existingId);
-      const rawName = (existing?.raw_name ?? option.siu_name ?? option.academic_name).trim();
+      const rawName = (existing?.raw_name || workshopForm.rawName || option.siu_name || option.academic_name).trim();
       const values = validateAcademicEdit({ status: workshopForm.status, grade: workshopForm.grade, date: workshopForm.date });
-      const slotId = workshopForm.slotId || existing?.curriculum_subject_id || null;
+      const availableSlots = workshopSlots.filter(slot => !linkedWorkshops.has(slot.id) && workshopOptionFitsSlot(slot.officialName, option.academic_name, option.option_kind));
+      const slotId = workshopForm.slotId || existing?.curriculum_subject_id || (availableSlots.length === 1 ? availableSlots[0].id : null);
       if (slotId && (!workshopSlots.some(slot => slot.id === slotId) || workshopHistory.some(row => row.id !== existing?.id && row.curriculum_subject_id === slotId))) throw new Error("Ese lugar del plan ya está ocupado.");
       const payload = { enrollment_id: active.id, raw_name: rawName, activity_kind: "complementary", ...values,
-        workshop_option_id: option.id, curriculum_subject_id: slotId, source: "manual", updated_at: new Date().toISOString() };
+        workshop_option_id: option.id, curriculum_subject_id: slotId, source: pendingWorkshopId ? "analytic" : "manual", updated_at: new Date().toISOString() };
       const query = workshopForm.existingId
         ? supabase.from("user_workshop_history").update(payload).eq("id", workshopForm.existingId)
         : supabase.from("user_workshop_history").insert(payload);
       const { data, error: saveError } = await query.select("id,raw_name,status,grade,passed_at,workshop_option_id,curriculum_subject_id").single();
       if (saveError || !data) throw new Error("No pudimos guardar el taller. Revisá si ya está vinculado a otro requisito.");
       setWorkshopHistory(current => [...current.filter(row => row.id !== data.id), data as WorkshopHistory]);
+      if (pendingWorkshopId) {
+        const { error: resolveError } = await supabase.from("user_pending_academic_records").update({ resolution_status: "confirmed", resolved_at: new Date().toISOString() })
+          .eq("id", pendingWorkshopId).eq("enrollment_id", active.id).eq("user_id", userId);
+        if (resolveError) {
+          setWorkshopForm(current => ({ ...current, existingId: data.id }));
+          throw new Error("Guardamos el taller, pero no pudimos cerrar su confirmación. Intentá de nuevo.");
+        }
+        setPendingRecords(current => current.map(row => row.id === pendingWorkshopId ? { ...row, resolution_status: "confirmed" } : row));
+        setPendingWorkshopId(null);
+      }
       setWorkshopModalOpen(false);
       setWorkshopForm({ existingId: "", slotId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" });
       router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos guardar el taller."); }
     setBusy(false);
+  }
+
+  function openImportedWorkshop(row: PendingAcademicRecord) {
+    const normalized = normalizeAcademicSubjectName(row.raw_name);
+    const option = verifiedWorkshopOptions.find(item => [item.siu_name, item.academic_name].some(name => name && normalizeAcademicSubjectName(name) === normalized));
+    const existing = workshopHistory.find(item => normalizeAcademicSubjectName(item.raw_name) === normalized);
+    setPendingWorkshopId(row.id);
+    setWorkshopForm({ existingId: existing?.id ?? "", slotId: existing?.curriculum_subject_id ?? "", rawName: row.raw_name, optionId: option?.id ?? "", status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" });
+    setWorkshopModalOpen(true);
   }
 
   async function confirmPending(recordId: string, chosenSubjectId?: string) {
@@ -279,36 +337,51 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
     setBusy(false);
   }
 
-  async function reviewParsedAnalytic(parsed: ParsedAnalytic) {
-      if (!active || activePlan?.catalog_kind !== "curriculum_subjects") return;
-      if (parsed.detectedProgramFamily && parsed.detectedProgramFamily !== activeProgram?.family) throw new Error("El documento parece corresponder a otra carrera.");
-      if (parsed.detectedPlanYear && !active.curriculumId.endsWith(String(parsed.detectedPlanYear))) throw new Error("El plan detectado no coincide con la trayectoria activa.");
-      if (parsed.detectedTitle && parsed.detectedTitle !== active.degreeType) throw new Error("El título detectado no coincide con la trayectoria activa.");
-      if (parsed.detectedOrientation && parsed.detectedOrientation !== active.orientationId) throw new Error("La orientación detectada no coincide con la trayectoria activa.");
+  async function reviewParsedAnalytic(parsed: ParsedAnalytic, target: DetectedTrajectory) {
+      const targetProgram = programs.find(row => row.id === target.programId);
+      const targetPlan = plans.find(row => row.id === target.curriculumId);
+      if (!targetProgram || targetPlan?.catalog_kind !== "curriculum_subjects") throw new Error("Este plan todavía no admite la importación multicarrera.");
+      if (parsed.detectedProgramFamily && parsed.detectedProgramFamily !== targetProgram.family) throw new Error("El documento parece corresponder a otra carrera.");
+      if (parsed.detectedPlanYear && !target.curriculumId.endsWith(String(parsed.detectedPlanYear))) throw new Error("El plan detectado no coincide con la trayectoria elegida.");
+      if (parsed.detectedTitle && parsed.detectedTitle !== target.degreeType) throw new Error("El título detectado no coincide con la trayectoria elegida.");
+      if (parsed.detectedOrientation && parsed.detectedOrientation !== target.orientationId) throw new Error("La orientación detectada no coincide con la trayectoria elegida.");
       if (!parsed.subjects.length) throw new Error("No encontramos materias en este analítico.");
+      const targetSubjects = subjectsForEnrollment(subjects, { id: "", ...target });
+      setAnalyticTarget(target);
       setAnalyticImportId(crypto.randomUUID());
+      const { data: aliases, error: aliasError } = await supabase.from("curriculum_subject_aliases")
+        .select("curriculum_subject_id,alias,verified").in("curriculum_subject_id", targetSubjects.map(row => row.id)).eq("verified", true);
+      if (aliasError) throw new Error("No pudimos verificar los alias del plan. Recargá la página e intentá de nuevo.");
+      const matched = classifyPlasticAnalyticRows(matchAnalyticSubjects(parsed.subjects, targetSubjects.map(row => ({ id: row.id, nombre: row.officialName, requirementKind: row.requirementKind })),
+        (aliases ?? []).map(row => ({ subject_id: row.curriculum_subject_id, alias: row.alias, verified: row.verified })),
+        { curriculumId: target.curriculumId, orientationId: target.orientationId }), workshopOptions.filter((option): option is WorkshopOption & { orientation_id: string } => option.option_kind === "orientation" && option.orientation_id !== null), target.orientationId);
+      setAnalyticMatches(matched);
       setAnalyticSummary({ approved: parsed.reportedApprovedCount, electives: parsed.reportedElectiveCount, detected: parsed.subjects.length, warnings: [
         ...parsed.warnings,
-        ...(parsed.subjects.some(row => needsWorkshopOrientationReview(row.rawName)) ? ["Los talleres complementarios identificados por orientación necesitan revisión. Podés conservar su nombre real para cotejo académico; no los asignes a casilleros genéricos."] : []),
+        ...(matched.some(row => isNamedWorkshopActivity(row.rawName) && !row.workshopSelected) ? ["Algunos talleres necesitan confirmar cuál opción del plan representan."] : []),
       ] });
-      const { data: aliases, error: aliasError } = await supabase.from("curriculum_subject_aliases")
-        .select("curriculum_subject_id,alias,verified").in("curriculum_subject_id", visible.map(row => row.id)).eq("verified", true);
-      if (aliasError) throw new Error("No pudimos verificar los alias del plan. Recargá la página e intentá de nuevo.");
-      setAnalyticMatches(classifyPlasticAnalyticRows(matchAnalyticSubjects(parsed.subjects, visible.map(row => ({ id: row.id, nombre: row.officialName, requirementKind: row.requirementKind })),
-        (aliases ?? []).map(row => ({ subject_id: row.curriculum_subject_id, alias: row.alias, verified: row.verified })),
-        { curriculumId: active.curriculumId, orientationId: active.orientationId }), workshopOptions.filter((option): option is WorkshopOption & { orientation_id: string } => option.option_kind === "orientation" && option.orientation_id !== null), active.orientationId));
   }
 
   async function parseAnalytic() {
-    if (!analyticFile || !active || activePlan?.catalog_kind !== "curriculum_subjects") return;
-    setBusy(true); setError(""); setAnalyticMatches([]); setAnalyticSummary(null); setAnalyticConfirmed(false); setAnalyticImportId(null);
+    if (!analyticFile || !ready) { setError("Esperá a que carguen los planes y elegí un PDF."); return; }
+    setBusy(true); setError(""); setAnalyticMatches([]); setAnalyticSummary(null); setAnalyticConfirmed(false); setAnalyticImportId(null); setAnalyticTarget(null);
     try {
       const form = new FormData(); form.append("file", analyticFile);
       const response = await fetch("/api/parse-analitico", { method: "POST", body: form });
       const parsed = await response.json() as ParsedAnalytic & { error?: string };
       if (!response.ok) throw new Error(parsed.error ?? "No pudimos leer el analítico.");
       setAnalyticDocumentPreview(parsed);
-      if (parsed.documentType === "ANALYTIC_WITH_REGULARIZED") await reviewParsedAnalytic(parsed);
+      if (parsed.documentType === "ANALYTIC_WITH_REGULARIZED") {
+        const detected = detectAnalyticTrajectory(parsed, programs, plans, orientations);
+        if (detected) {
+          if (findMatchingEnrollment(detected, deletedEnrollments)) throw new Error("Esta trayectoria está en eliminadas. Restaurala antes de importar.");
+          setAnalyticTarget(detected);
+          const existing = findMatchingEnrollment(detected, currentEnrollments);
+          if (existing?.id === active?.id) await reviewParsedAnalytic(parsed, detected);
+        } else if (active && activePlan?.catalog_kind === "curriculum_subjects") {
+          await reviewParsedAnalytic(parsed, { programId: active.programId, curriculumId: active.curriculumId, orientationId: active.orientationId, degreeType: active.degreeType });
+        } else throw new Error("No pudimos identificar la trayectoria completa. Elegí el título, plan y orientación antes de importar.");
+      }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos leer el analítico."); }
     finally { setBusy(false); }
   }
@@ -316,29 +389,55 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
   async function tryOtherAnalytic() {
     if (!analyticDocumentPreview?.subjects.length) return;
     setBusy(true); setError("");
-    try { await reviewParsedAnalytic(analyticDocumentPreview); }
+    try {
+      const target = analyticTarget ?? (active && activePlan?.catalog_kind === "curriculum_subjects" ? { programId: active.programId, curriculumId: active.curriculumId, orientationId: active.orientationId, degreeType: active.degreeType } : null);
+      if (!target) throw new Error("Elegí una trayectoria antes de continuar.");
+      await reviewParsedAnalytic(analyticDocumentPreview, target);
+    }
     catch (caught) { setError(caught instanceof Error ? caught.message : "No pudimos leer el analítico."); }
     finally { setBusy(false); }
   }
 
   async function saveAnalytic() {
-    if (!active || !analyticConfirmed) return;
+    if (!analyticTarget || !analyticConfirmed) return;
     const { subjects: selected, workshops, pending } = partitionAnalyticReview(analyticMatches);
     if (selected.some(row => needsWorkshopOrientationReview(row.rawName))) { setError("Guardá esos talleres como actividades reales para revisión o ignorá la fila; no los asignes a casilleros genéricos."); return; }
     if (new Set(selected.map(row => String(row.subjectId))).size !== selected.length) { setError("Una materia aparece dos veces. Resolvé esas filas primero."); return; }
     setBusy(true); setError("");
+    let createdId: string | null = null;
+    const existing = findMatchingEnrollment(analyticTarget, currentEnrollments);
+    let enrollmentId = existing?.id;
+    if (!enrollmentId) {
+      const { data, error: createError } = await supabase.from("user_enrollments").insert({ user_id: userId, program_id: analyticTarget.programId, curriculum_id: analyticTarget.curriculumId, orientation_id: analyticTarget.orientationId, is_active: false }).select("id").single();
+      if (createError || !data) { setError("No pudimos crear la trayectoria detectada."); setBusy(false); return; }
+      enrollmentId = data.id;
+      createdId = data.id;
+    }
+    if (!enrollmentId) { setError("No pudimos identificar la trayectoria detectada."); setBusy(false); return; }
     const { error: saveError } = await supabase.rpc("save_enrollment_analytic_review", {
-      p_enrollment_id: active.id,
+      p_enrollment_id: enrollmentId,
       p_subjects: selected.map(row => ({ subject_id: String(row.subjectId), raw_name: row.rawName, match_kind: row.manualOverride ? "MANUAL" : row.kind, source_reference: analyticImportId, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null })),
       p_workshops: workshops.map(row => ({ raw_name: row.rawName, workshop_option_id: row.workshopOptionId ?? null, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null })),
       p_pending: pending.map(row => ({ raw_name: row.rawName, status: row.status ?? "passed", grade: row.grade ?? null, passed_at: row.passedAt ?? null, match_kind: row.kind, suggested_subject_id: row.candidateId ?? row.candidateIds?.[0] ?? null, record_type: isNamedWorkshopActivity(row.rawName) ? "workshop" : "subject", resolution_status: row.ignored ? "ignored" : "pending", source_reference: analyticImportId })),
     });
-    if (saveError) setError("No pudimos guardar las materias del analítico.");
-    else { setAnalyticMatches([]); setAnalyticSummary(null); const [{ data: refreshed }, { data: workshopData }, { data: pendingData }] = await Promise.all([
-      supabase.from("user_enrollment_subjects").select("curriculum_subject_id,status,grade,passed_at").eq("enrollment_id", active.id),
-      supabase.from("user_workshop_history").select("id,raw_name,status,grade,passed_at,workshop_option_id,curriculum_subject_id").eq("enrollment_id", active.id),
-      supabase.from("user_pending_academic_records").select("id,raw_name,status,grade,passed_at,match_kind,record_type,suggested_subject_id,resolution_status").eq("enrollment_id", active.id),
-    ]); if (refreshed) setHistoryRows(refreshed as EnrollmentHistory[]); if (workshopData) setWorkshopHistory(workshopData as WorkshopHistory[]); if (pendingData) setPendingRecords(pendingData as PendingAcademicRecord[]); router.push("/dashboard/recorrido"); router.refresh(); }
+    if (saveError) {
+      if (createdId) await supabase.from("user_enrollments").delete().eq("id", createdId).eq("user_id", userId).eq("is_active", false);
+      setError("No pudimos guardar las materias del analítico.");
+      setBusy(false);
+      return;
+    }
+    const { error: activateError } = await supabase.rpc("activate_user_enrollment", { selected_id: enrollmentId });
+    if (activateError) {
+      setError("Guardamos el analítico, pero no pudimos activar esa trayectoria. Activala desde Mis trayectorias.");
+      await reload();
+      setBusy(false);
+      return;
+    }
+    setSelectedEnrollmentId(enrollmentId);
+    setAnalyticMatches([]); setAnalyticSummary(null); setAnalyticDocumentPreview(null); setAnalyticFile(null); setLastImportComplete(true); setAnalyticOpen(false);
+    if (analyticFileInputRef.current) analyticFileInputRef.current.value = "";
+    await reload();
+    router.push("/dashboard/recorrido?imported=1"); router.refresh();
     setBusy(false);
   }
 
@@ -353,7 +452,7 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       <p className="mt-2 text-sm">Necesita confirmación. Esta materia todavía no afecta tu recorrido.</p>
       {row.record_type === "workshop" ? <p className="mt-3 text-sm text-ink/65">Taller pendiente de cotejo de orientación. Todavía no suma al requisito.</p> : <label className="mt-3 block text-sm font-bold">Materia correspondiente<select className="input mt-1 min-w-0" value={pendingChoices[row.id] ?? row.suggested_subject_id ?? ""} onChange={event => setPendingChoices(current => ({ ...current, [row.id]: event.target.value }))}><option value="">Elegir materia</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>}
       <div className="mt-3 flex flex-wrap gap-2">
-        {row.record_type !== "workshop" && <button type="button" className="button-primary" disabled={busy || !(pendingChoices[row.id] ?? row.suggested_subject_id)} onClick={() => void confirmPending(row.id, pendingChoices[row.id] ?? row.suggested_subject_id ?? undefined)}>Confirmar</button>}
+        {row.record_type === "workshop" ? <Link className="button-primary" href="/dashboard/recorrido">Confirmar taller en Mi recorrido</Link> : <button type="button" className="button-primary" disabled={busy || !(pendingChoices[row.id] ?? row.suggested_subject_id)} onClick={() => void confirmPending(row.id, pendingChoices[row.id] ?? row.suggested_subject_id ?? undefined)}>Confirmar</button>}
         <button type="button" className="button-secondary" disabled={busy} onClick={() => void changePendingResolution(row.id, "ignored")}>Ignorar</button>
         <Link className="button-secondary" href="/dashboard/recorrido">Revisar después</Link>
       </div>
@@ -368,18 +467,27 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
       <div className="mt-4 grid gap-2 sm:grid-cols-2">{currentEnrollments.map(row => <button key={row.id} type="button" disabled={busy} onClick={() => setSelectedEnrollmentId(row.id)} className={`min-h-12 border-2 border-ink p-3 text-left ${row.id === active?.id ? "bg-cronopios-pink" : "bg-white"}`}>
         <strong>{programs.find(program => program.id === row.programId)?.name ?? row.programId}</strong><span className="block text-sm">{orientations.find(orientation => orientation.id === row.orientationId)?.name ? `${orientations.find(orientation => orientation.id === row.orientationId)?.name} · ` : ""}{plans.find(plan => plan.id === row.curriculumId)?.display_name}</span>{row.isActive && <span className="text-xs font-bold">Trayectoria activa</span>}{row.id === active?.id && <span className="block text-xs">Viendo esta trayectoria</span>}
       </button>)}</div>
-      {!currentEnrollments.length && <p className="mt-3 text-sm">No tenés trayectorias activas. Podés crear una nueva o restaurar una anterior.</p>}
+      {!currentEnrollments.length && <p className="mt-3 text-sm">Todavía no tenés una trayectoria. Podés crearla acá o importar tu analítico en la sección siguiente.</p>}
       {active && !active.isActive && <div className="mt-4"><p className="text-sm">Estás viendo una trayectoria inactiva. Consultarla o cargar materias no cambia tu trayectoria activa.</p><button type="button" disabled={busy} onClick={() => void activate(active.id)} className="button-primary mt-2">Activar esta trayectoria</button></div>}
       {active && <button type="button" disabled={busy} onClick={() => void prepareDelete(active.id)} className="button-secondary mt-3">Eliminar esta trayectoria</button>}
       {deleteTarget && (() => { const target = currentEnrollments.find(row => row.id === deleteTarget); const counts = enrollmentCounts[deleteTarget]; const hasHistory = counts && counts.subjects + counts.workshops + counts.pending > 0; return target && <div role="dialog" aria-label="Eliminar trayectoria" className="mt-4 border-2 border-ink bg-white p-4"><h3 className="font-bold">¿Eliminar esta trayectoria?</h3><p className="mt-1 text-sm">{programs.find(row => row.id === target.programId)?.name} · {orientations.find(row => row.id === target.orientationId)?.name ? `${orientations.find(row => row.id === target.orientationId)?.name} · ` : ""}{plans.find(row => row.id === target.curriculumId)?.display_name}</p>{counts ? <p className="mt-2 text-sm">Contiene {counts.subjects} materias, {counts.workshops} talleres y {counts.pending} registros pendientes. Tus eventos personales independientes seguirán disponibles.</p> : <p>Cargando contenido…</p>}{hasHistory && <label className="mt-3 block text-sm">Para confirmar, escribí ELIMINAR<input className="input mt-1" value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} /></label>}{target.isActive && currentEnrollments.length > 1 && <label className="mt-3 block text-sm">Trayectoria que quedará activa<select className="input mt-1" value={replacementId} onChange={event => setReplacementId(event.target.value)}><option value="">Elegir trayectoria</option>{currentEnrollments.filter(row => row.id !== target.id).map(row => <option key={row.id} value={row.id}>{programs.find(program => program.id === row.programId)?.name} · {plans.find(plan => plan.id === row.curriculumId)?.display_name}</option>)}</select></label>}<div className="mt-4 flex flex-wrap gap-2"><button type="button" className="button-secondary" onClick={() => setDeleteTarget(null)}>Cancelar</button><button type="button" className="button-primary" disabled={busy || !counts || Boolean(hasHistory && deleteConfirmation !== "ELIMINAR") || Boolean(target.isActive && currentEnrollments.length > 1 && !replacementId)} onClick={() => void deleteEnrollment()}>Eliminar trayectoria</button></div></div>; })()}
-      {deletedEnrollments.length > 0 && <details className="mt-4"><summary className="cursor-pointer font-bold">Trayectorias eliminadas · {deletedEnrollments.length}</summary><div className="mt-3 space-y-2">{deletedEnrollments.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-ink/20 pt-2"><span>{programs.find(program => program.id === row.programId)?.name} · {orientations.find(orientation => orientation.id === row.orientationId)?.name ? `${orientations.find(orientation => orientation.id === row.orientationId)?.name} · ` : ""}{plans.find(plan => plan.id === row.curriculumId)?.display_name}</span><button type="button" disabled={busy} className="button-secondary" onClick={() => void restoreEnrollment(row.id)}>Restaurar</button></div>)}</div></details>}
+      {deletedEnrollments.length > 0 && <details className="mt-4 border-2 border-cronopios-pink p-3"><summary className="cursor-pointer font-bold">Trayectorias eliminadas · {deletedEnrollments.length}</summary><div className="mt-3 space-y-2">{deletedEnrollments.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-ink/20 pt-2"><span>{programs.find(program => program.id === row.programId)?.name} · {orientations.find(orientation => orientation.id === row.orientationId)?.name ? `${orientations.find(orientation => orientation.id === row.orientationId)?.name} · ` : ""}{plans.find(plan => plan.id === row.curriculumId)?.display_name}</span><button type="button" disabled={busy} className="button-secondary" onClick={() => void restoreEnrollment(row.id)}>Restaurar</button></div>)}</div></details>}
       <h3 className="mt-6 font-bold">Agregar otra trayectoria</h3><div className="mt-2 grid gap-3 sm:grid-cols-3">
         <label className="text-sm font-bold">Título<select className="input mt-1" value={programId} onChange={event => { const next = programs.find(row => row.id === event.target.value); setProgramId(event.target.value); if (plans.find(row => row.id === planId)?.family !== next?.family) { const matching = plans.find(row => row.family === next?.family); if (matching) setPlanId(matching.id); } }}><option value="">Elegir título</option>{programs.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
         <label className="text-sm font-bold">Plan<select className="input mt-1" value={planId} onChange={event => setPlanId(event.target.value)}>{plans.filter(row => row.family === programs.find(program => program.id === programId)?.family).map(row => <option key={row.id} value={row.id}>{row.display_name}</option>)}</select></label>
         {plans.find(row => row.id === planId)?.requires_orientation && <label className="text-sm font-bold">Orientación<select className="input mt-1" value={orientationId} onChange={event => setOrientationId(event.target.value)}>{orientations.filter(row => row.family === plans.find(plan => plan.id === planId)?.family).map(row => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>}
       </div><button type="button" disabled={busy || !ready} onClick={() => void createEnrollment()} className="button-secondary mt-4">Agregar trayectoria</button>
     </section>}
-    {active && activePlan?.catalog_kind === "curriculum_subjects" && <section><p className="eyebrow">{activeProgram?.name} · {activeOrientation?.name} · {activePlan.display_name}</p><h2 className="mt-2 font-display text-2xl font-black">Materias de mi plan</h2><p className="mt-2 text-sm text-ink/65">{progress?.completed} de {progress?.total} requisitos obligatorios conocidos aprobados. Los talleres y seminarios a elección se cuentan por separado; este número no es el porcentaje total del título.</p>
+    <section className="card mt-5"><button type="button" aria-expanded={analyticOpen} onClick={() => setAnalyticOpen(open => !open)} className="flex w-full items-center justify-between gap-3 text-left"><span><span className="block font-display text-xl font-black">Analítico</span>{lastImportComplete && <span className="mt-1 block text-sm text-ink/60">Última importación realizada · Mostrar opciones</span>}</span><span aria-hidden>{analyticOpen ? "−" : "+"}</span></button>
+      {analyticOpen && <div><div className="mt-3"><AnalyticUploadGuide /></div><label className="mt-3 block text-sm font-bold">Subir analítico<input ref={analyticFileInputRef} className="input mt-1" type="file" accept=".pdf,application/pdf" onChange={event => { setAnalyticFile(event.target.files?.[0] ?? null); setAnalyticDocumentPreview(null); setAnalyticMatches([]); setAnalyticTarget(null); }} /></label><button type="button" disabled={busy || !analyticFile || !ready} onClick={() => void parseAnalytic()} className="button-secondary mt-3">Revisar materias</button><AnalyticUploadCaution />
+        {analyticDocumentPreview && analyticDocumentPreview.documentType !== "ANALYTIC_WITH_REGULARIZED" && <AnalyticDocumentNotice documentType={analyticDocumentPreview.documentType} subjectsFound={analyticDocumentPreview.subjects.length} textPresent={analyticDocumentPreview.textPresent} onTry={() => void tryOtherAnalytic()} onChooseAnother={() => { setAnalyticFile(null); setAnalyticDocumentPreview(null); if (analyticFileInputRef.current) { analyticFileInputRef.current.value = ""; analyticFileInputRef.current.click(); } }} />}
+        {analyticDocumentPreview?.documentType === "ANALYTIC_WITH_REGULARIZED" && <AnalyticRecognition parsed={analyticDocumentPreview} />}
+        {analyticTarget && analyticDocumentPreview && !analyticSummary && <div className="mt-4 border-l-4 border-cronopios-pink p-3"><p className="font-bold">Detectamos tu trayectoria</p><p className="text-sm">{programs.find(row => row.id === analyticTarget.programId)?.name} · {plans.find(row => row.id === analyticTarget.curriculumId)?.display_name}{analyticTarget.orientationId ? ` · ${orientations.find(row => row.id === analyticTarget.orientationId)?.name}` : ""}</p><button type="button" disabled={busy} className="button-primary mt-3" onClick={() => { setBusy(true); setError(""); void reviewParsedAnalytic(analyticDocumentPreview, analyticTarget).catch(caught => setError(caught instanceof Error ? caught.message : "No pudimos revisar el analítico.")).finally(() => setBusy(false)); }}>Usar esta trayectoria</button></div>}
+        {analyticSummary && <div className="mt-4 text-sm"><p>Analítico procesado: {analyticSummary.detected} materias detectadas. {analyticMatches.filter(row => row.subjectId && !row.ignored).length} reconocidas y {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} necesitan confirmación.</p><p className="mt-1 text-ink/65">Podés guardar las reconocidas y revisar las demás después.</p>{analyticSummary.warnings.map(warning => <p key={warning} className="mt-2 text-amber-900">{warning}</p>)}</div>}
+        {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><label className="mb-3 flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> <span>Confirmo que este analítico corresponde a {programs.find(row => row.id === analyticTarget?.programId)?.name}, {plans.find(row => row.id === analyticTarget?.curriculumId)?.display_name}{analyticTarget?.orientationId ? `, orientación ${orientations.find(row => row.id === analyticTarget.orientationId)?.name}` : ""}.</span></label><div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar y ver mi recorrido</button><a href="#revisar-analitico" className="button-secondary">Revisar las {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} ahora</a><Link href="/dashboard/recorrido" className="button-secondary">Volver a mi recorrido sin guardar</Link></div><div id="revisar-analitico"><h4 className="font-bold">Revisión del analítico</h4><p className="text-sm text-ink/65">No encontramos una coincidencia segura para algunas filas. Podés revisarlas después; todavía no afectan tu recorrido.</p>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs text-ink/65">{row.workshopSelected ? "Taller real" : ["EXACT", "ALIAS", "CONTEXT"].includes(row.kind) ? "Reconocida" : "Necesita confirmación"}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", workshopOptionId: event.target.value === "__workshop" ? item.workshopOptionId : undefined, ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value), manualOverride: true } : item))}><option value="">Dejar pendiente de confirmar</option>{row.workshopSelected && <option value="__workshop">Guardar taller real</option>}<option value="__ignore">Ignorar fila</option>{importVisible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}</div></div>}
+      </div>}
+    </section>
+    {active && activePlan?.catalog_kind === "curriculum_subjects" && <section><p className="eyebrow">{activeProgram?.name} · {activeOrientation?.name} · {activePlan.display_name}</p><h2 className="mt-2 font-display text-2xl font-black">Materias de mi plan</h2><p className="mt-2 text-sm text-ink/65">{progress?.completed} de {progress?.total} requisitos obligatorios conocidos aprobados. Los talleres y seminarios a elección se cuentan por separado; este número no es el porcentaje total del título.</p><p className="mt-2 text-sm font-semibold">Promedio <span className="font-display text-lg">{average ?? "—"}</span></p>
       <div className="card mt-4">
         <h3 className="font-display text-xl font-bold">Talleres complementarios</h3>
         {workshopStorageReady ? <p className="mt-1 text-sm font-semibold">{Math.min(4, workshopCount)} de 4 realizados · Falta {Math.max(0, 4 - workshopCount)}</p> : <p className="mt-1 text-sm">El historial de talleres todavía no está disponible.</p>}
@@ -394,22 +502,20 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
             <p className="min-w-0 [overflow-wrap:anywhere]"><span aria-hidden>{counts ? "✓ " : "○ "}</span><strong>{option?.academic_name ?? row.raw_name}</strong>{option && row.raw_name !== option.academic_name && <span className="block text-xs text-ink/60">{row.raw_name}</span>}{!counts && <span className="block text-xs text-ink/60">{option?.orientation_id === active.orientationId ? "Es tu orientación básica; no suma al requisito." : option ? academicStatusLabel(row.status) : "Pendiente de verificar orientación; todavía no suma."}</span>}{academicHistoryDetail({ grade: row.grade, date: row.passed_at }) && <span className="block text-xs text-ink/60">{academicHistoryDetail({ grade: row.grade, date: row.passed_at })}</span>}</p>
             {option && option.orientation_id !== active.orientationId && <button type="button" className="button-secondary" onClick={() => { setWorkshopForm({ existingId: row.id, slotId: row.curriculum_subject_id ?? "", rawName: row.raw_name, optionId: option.id, status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" }); setWorkshopModalOpen(true); }}>Editar</button>}
           </div>;
-        })}{openWorkshopPending.map(row => <p key={row.id} className="border-t border-ink/15 pt-2 text-sm">○ {row.raw_name} <span className="block text-xs text-ink/60">Pendiente de verificar orientación.</span></p>)}</div>
+        })}{openWorkshopPending.map(row => <div key={row.id} className="border-t border-ink/15 pt-2 text-sm"><p>○ {row.raw_name}</p><p className="text-xs text-ink/60">¿Este taller corresponde a uno de tus Talleres Complementarios?</p><button type="button" className="button-primary mt-2" onClick={() => openImportedWorkshop(row)}>Confirmar taller</button></div>)}</div>
         <button type="button" className="button-secondary mt-4" disabled={!workshopStorageReady || !verifiedWorkshopOptions.length} onClick={() => { setWorkshopForm({ existingId: "", slotId: "", rawName: "", optionId: "", status: "passed", grade: "", date: "" }); setWorkshopModalOpen(true); }}>Agregar taller</button></details>
-        {unplacedWorkshops.map(row => { const option = workshopOptions.find(item => item.id === row.workshop_option_id); return <div key={row.id} className="mt-3 text-sm"><p>Taller registrado pendiente de ubicar: {option?.academic_name ?? row.raw_name}</p><button type="button" className="mt-1 font-bold underline" onClick={() => { setWorkshopForm({ existingId: row.id, slotId: "", rawName: row.raw_name, optionId: row.workshop_option_id ?? "", status: row.status, grade: row.grade == null ? "" : String(row.grade), date: row.passed_at ?? "" }); setWorkshopModalOpen(true); }}>Ubicar en el recorrido</button></div>; })}
       </div>
       {workshopModalOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setWorkshopModalOpen(false); }}>
         <section role="dialog" aria-modal="true" aria-labelledby="workshop-dialog-title" onKeyDown={event => { if (event.key === "Escape" && !busy) setWorkshopModalOpen(false); }} className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border-2 border-ink bg-white p-5 shadow-[5px_5px_0_0_#000] sm:rounded-2xl">
-          <h3 id="workshop-dialog-title" className="font-display text-xl font-black">{workshopForm.existingId ? "Editar taller" : "Agregar taller"}</h3>
+          <h3 id="workshop-dialog-title" className="font-display text-xl font-black">{pendingWorkshopId ? "Confirmar taller" : workshopForm.existingId ? "Editar taller" : "Agregar taller"}</h3>
           {workshopForm.slotId && workshopSlots.find(slot => slot.id === workshopForm.slotId)?.officialName.includes("(") && workshopCount < 4 && <p className="mt-3 text-sm">Este taller se habilita después de aprobar cuatro talleres complementarios de distintas orientaciones.</p>}
           <div className="mt-4 grid gap-3">
             <label className="text-sm font-bold">Taller<select className="input mt-1" value={workshopForm.optionId} disabled={Boolean(workshopForm.existingId)} onChange={event => setWorkshopForm(current => ({ ...current, optionId: event.target.value }))}><option value="">Elegí un taller</option>{verifiedWorkshopOptions.filter(option => !workshopForm.slotId || workshopOptionFitsSlot(workshopSlots.find(slot => slot.id === workshopForm.slotId)?.officialName ?? "", option.academic_name, option.option_kind)).map(option => <option key={option.id} value={option.id}>{option.academic_name}</option>)}</select></label>
-            {!workshopForm.slotId && <label className="text-sm font-bold">Lugar en el recorrido<select className="input mt-1" value={workshopForm.slotId} onChange={event => setWorkshopForm(current => ({ ...current, slotId: event.target.value }))}><option value="">Pendiente de ubicar</option>{workshopSlots.filter(slot => !linkedWorkshops.has(slot.id) && (!slot.officialName.includes("(") || workshopCount >= 4) && (!workshopForm.optionId || workshopOptionFitsSlot(slot.officialName, workshopOptions.find(option => option.id === workshopForm.optionId)?.academic_name ?? "", workshopOptions.find(option => option.id === workshopForm.optionId)?.option_kind))).map(slot => <option key={slot.id} value={slot.id}>Año {slot.yearLevel} · {slot.officialName}</option>)}</select></label>}
             <label className="text-sm font-bold">Estado<select className="input mt-1" value={workshopForm.status} onChange={event => setWorkshopForm(current => ({ ...current, status: event.target.value as Status }))}><option value="passed">Aprobada</option><option value="regular">Cursada aprobada</option><option value="in_progress">Cursando</option><option value="pending">Sin completar</option></select></label>
             <label className="text-sm font-bold">Nota opcional<input className="input mt-1" type="number" min="1" max="10" step="0.1" value={workshopForm.grade} onChange={event => setWorkshopForm(current => ({ ...current, grade: event.target.value }))} /></label>
             <details><summary className="cursor-pointer text-sm font-bold">Más información</summary><label className="mt-2 block text-sm font-bold">Fecha opcional<input className="input mt-1" type="date" value={workshopForm.date} onChange={event => setWorkshopForm(current => ({ ...current, date: event.target.value }))} /></label></details>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy || !workshopForm.optionId} className="button-primary" onClick={() => void saveWorkshop()}>{busy ? "Guardando…" : "Guardar"}</button><button type="button" disabled={busy} className="button-secondary" onClick={() => setWorkshopModalOpen(false)}>Cancelar</button></div>
+          <div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy || !workshopForm.optionId} className="button-primary" onClick={() => void saveWorkshop()}>{busy ? "Guardando…" : pendingWorkshopId ? "Confirmar taller" : "Guardar taller"}</button><button type="button" disabled={busy} className="button-secondary" onClick={() => { setWorkshopModalOpen(false); setPendingWorkshopId(null); }}>Cancelar</button></div>
         </section>
       </div>}
       {openSubjectPending.length > 0 && <section className="card mt-4">
@@ -418,12 +524,6 @@ export function TrajectoryManager({ userId, reviewOnly = false, showManagement =
         <div className="mt-3 space-y-2">{openSubjectPending.map(row => <AcademicSubjectCard key={row.id} name={row.raw_name} status="review" grade={row.grade} onOpen={() => setPendingDetailId(row.id)} />)}</div><Link href="/dashboard/revisar-recorrido" className="mt-4 inline-block text-sm font-bold underline">Revisar todas</Link>
       </section>}
       {ignoredPending.length > 0 && <details className="card mt-4" open={showIgnored} onToggle={event => setShowIgnored(event.currentTarget.open)}><summary className="cursor-pointer font-bold">Ver registros ignorados · {ignoredPending.length}</summary><div className="mt-3 space-y-3">{ignoredPending.map(row => <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-ink/20 pt-2"><span className="[overflow-wrap:anywhere]">{row.raw_name}</span><button type="button" disabled={busy} className="button-secondary" onClick={() => void changePendingResolution(row.id, "pending")}>Restaurar a pendientes</button></div>)}</div></details>}
-      <div className="card mt-5"><h3 className="font-display text-xl font-black">Subir analítico</h3><div className="mt-3"><AnalyticUploadGuide /></div><label className="mt-3 block text-sm font-bold">Subir analítico<input ref={analyticFileInputRef} className="input mt-1" type="file" accept=".pdf,application/pdf" onChange={event => { setAnalyticFile(event.target.files?.[0] ?? null); setAnalyticDocumentPreview(null); }} /></label><button type="button" disabled={busy || !analyticFile} onClick={() => void parseAnalytic()} className="button-secondary mt-3">Revisar materias</button><AnalyticUploadCaution />
-        {analyticDocumentPreview && analyticDocumentPreview.documentType !== "ANALYTIC_WITH_REGULARIZED" && <AnalyticDocumentNotice documentType={analyticDocumentPreview.documentType} subjectsFound={analyticDocumentPreview.subjects.length} textPresent={analyticDocumentPreview.textPresent} onTry={() => void tryOtherAnalytic()} onChooseAnother={() => { setAnalyticFile(null); setAnalyticDocumentPreview(null); if (analyticFileInputRef.current) { analyticFileInputRef.current.value = ""; analyticFileInputRef.current.click(); } }} />}
-        {analyticDocumentPreview?.documentType === "ANALYTIC_WITH_REGULARIZED" && <AnalyticRecognition parsed={analyticDocumentPreview} />}
-        {analyticSummary && <div className="mt-4 text-sm"><p>Analítico procesado: {analyticSummary.detected} materias detectadas. {analyticMatches.filter(row => row.subjectId && !row.ignored).length} reconocidas y {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} necesitan confirmación.</p><p className="mt-1 text-ink/65">Podés guardar las reconocidas y revisar las demás después.</p>{analyticSummary.warnings.map(warning => <p key={warning} className="mt-2 text-amber-900">{warning}</p>)}</div>}
-        {analyticMatches.length > 0 && <div className="mt-5 space-y-3"><label className="mb-3 flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" checked={analyticConfirmed} onChange={event => setAnalyticConfirmed(event.target.checked)} /> <span>Confirmo que este analítico corresponde a {activeProgram?.name}, orientación {activeOrientation?.name}, {plans.find(plan => plan.id === active.curriculumId)?.display_name}.</span></label><div className="flex flex-wrap gap-2"><button type="button" disabled={busy || !analyticConfirmed} onClick={() => void saveAnalytic()} className="button-primary">Guardar y ver mi recorrido</button><a href="#revisar-analitico" className="button-secondary">Revisar las {analyticMatches.filter(row => !row.subjectId && !row.workshopSelected && !row.ignored).length} ahora</a><Link href="/dashboard/recorrido" className="button-secondary">Volver a mi recorrido sin guardar</Link></div><div id="revisar-analitico"><h4 className="font-bold">Revisión del analítico</h4><p className="text-sm text-ink/65">No encontramos una coincidencia segura para algunas filas. Podés revisarlas después; todavía no afectan tu recorrido.</p>{analyticMatches.map((row, index) => <label key={`${row.rawName}-${index}`} className="block border-t border-ink/20 pt-3 text-sm"><span className="font-bold">{row.rawName}</span><span className="ml-2 text-xs text-ink/65">{row.workshopSelected ? "Taller real" : ["EXACT", "ALIAS", "CONTEXT"].includes(row.kind) ? "Reconocida" : "Necesita confirmación"}</span><select className="input mt-2" value={row.workshopSelected ? "__workshop" : row.subjectId ? String(row.subjectId) : row.ignored ? "__ignore" : ""} onChange={event => setAnalyticMatches(current => current.map((item, i) => i === index ? { ...item, subjectId: event.target.value && !event.target.value.startsWith("__") ? event.target.value : undefined, workshopSelected: event.target.value === "__workshop", workshopOptionId: event.target.value === "__workshop" ? item.workshopOptionId : undefined, ignored: event.target.value === "__ignore", reviewed: Boolean(event.target.value), manualOverride: true } : item))}><option value="">Dejar pendiente de confirmar</option>{needsWorkshopOrientationReview(row.rawName) && workshopStorageReady && <option value="__workshop">Guardar taller real</option>}<option value="__ignore">Ignorar fila</option>{visible.map(subject => <option key={subject.id} value={subject.id}>{subject.officialName}</option>)}</select></label>)}</div></div>}
-      </div>
       <div className="mt-5 flex flex-wrap gap-2" aria-label="Filtrar materias">{([ ["all", "Todas"], ["pending", "Pendientes"], ["in_progress", "Cursando"], ["regular", "Cursada aprobada"], ["passed", "Aprobadas"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className="filter-chip">{label}</button>)}</div>
       <div className="mt-5 space-y-7">{Array.from(new Set(items.map(item => item.yearLevel))).sort((a, b) => (a ?? 0) - (b ?? 0)).map(year => <section key={year}><h3 className="mb-3 inline-block border-b-4 border-lime font-display text-lg font-bold">Año {year}</h3><div className="space-y-3">{items.filter(item => item.yearLevel === year && (filter === "all" || (workshopSlots.some(slot => slot.id === item.id) ? linkedWorkshops.get(item.id)?.status ?? "pending" : item.status) === filter)).map(item => {
         const slot = workshopSlots.find(row => row.id === item.id);

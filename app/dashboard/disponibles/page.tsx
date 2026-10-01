@@ -26,6 +26,7 @@ export default async function DisponiblesPage() {
   if (!user) return <p>Iniciá sesión para ver tu recorrido.</p>;
   const supabase = await createClient();
   const { data: active } = await supabase.from("user_enrollments").select("id,program_id,curriculum_id,orientation_id").eq("user_id", user.id).eq("is_active", true).maybeSingle();
+  if (!active) return <div className="card"><h1 className="font-display text-2xl font-black">Qué podés cursar</h1><p className="mt-2">Elegí una trayectoria para ver las materias disponibles de ese plan.</p><Link href="/dashboard/trayectorias" className="button-primary mt-4 inline-flex">Elegir trayectoria</Link></div>;
   const { data: activePlan } = active ? await supabase.from("curricula").select("catalog_kind,display_name").eq("id", active.curriculum_id).maybeSingle() : { data: null };
   if (active && activePlan?.catalog_kind === "curriculum_subjects") {
     const { count: pendingCount } = await supabase.from("user_pending_academic_records").select("id", { count: "exact", head: true }).eq("enrollment_id", active.id).eq("resolution_status", "pending");

@@ -44,6 +44,7 @@ export async function POST(request: Request) {
       textPresent: Boolean(extractedText.trim())
     });
   } catch (error) {
+    console.error("analytic_pdf_parse_failed", { type: error instanceof Error ? error.name : "unknown" });
     const message = error instanceof Error ? error.message : "Error desconocido al leer el PDF.";
     return NextResponse.json({ error: `No se pudo extraer el texto del PDF: ${message}` }, { status: 422 });
   }

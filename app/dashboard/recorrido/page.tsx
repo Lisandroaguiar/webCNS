@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TrajectoryManager } from "@/components/academic/trajectory-manager";
 import { TrajectorySwitcher, type TrajectoryOption } from "@/components/academic/trajectory-switcher";
 
-export default async function RecorridoPage() {
+export default async function RecorridoPage({ searchParams }: { searchParams?: { imported?: string } }) {
   const user = await getCurrentUser();
   const supabase = await createClient();
   const [{ data: enrollments }, { data: programs }, { data: plans }, { data: orientations }] = user ? await Promise.all([
@@ -24,7 +24,10 @@ export default async function RecorridoPage() {
     return { id: row.id, label: [program?.name ?? row.program_id, orientation?.name, plan?.display_name ?? row.curriculum_id].filter(Boolean).join(" · "), degree: program?.degree_type === "profesorado" ? "profesorado" : "licenciatura", legacyCurriculum: plan?.legacy_curriculum === "old" || plan?.legacy_curriculum === "new" ? plan.legacy_curriculum : null };
   });
   return <><header className="mb-8"><p className="eyebrow">Seguimiento académico</p><h1 className="mt-2 font-display text-4xl font-bold">Mi recorrido</h1><p className="mt-2 text-ink/55">Registrá tu avance y entendé qué materias tenés disponibles.</p></header>
+    {searchParams?.imported === "1" && <p role="status" className="card mb-6 border-l-4 border-cronopios-pink font-semibold">Listo, actualizamos tu recorrido.</p>}
     {options.length ? <TrajectorySwitcher options={options} activeId={active?.id ?? null} /> : <Link href="/dashboard/trayectorias" className="button-secondary mb-6 inline-flex">Agregar trayectoria</Link>}
-    {activePlan?.catalog_kind === "curriculum_subjects" && user ? <TrajectoryManager key={active?.id} userId={user.id} showManagement={false} /> : <MateriasManager key={active?.id ?? "legacy"} managedByEnrollment={Boolean(active)} initialDegree={activeProgram?.degree_type === "profesorado" ? "profesorado" : "licenciatura"} initialCurriculum={activePlan?.legacy_curriculum === "new" ? "new" : "old"} />}
+    {user && (activePlan?.catalog_kind === "curriculum_subjects" || !active)
+      ? <TrajectoryManager key={`${user.id}:${active?.id ?? "no-active-trajectory"}`} userId={user.id} showManagement={!active} />
+      : active && <MateriasManager key={active.id} managedByEnrollment initialDegree={activeProgram?.degree_type === "profesorado" ? "profesorado" : "licenciatura"} initialCurriculum={activePlan?.legacy_curriculum === "new" ? "new" : "old"} />}
   </>;
 }

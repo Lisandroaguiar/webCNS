@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { partitionAnalyticReview, reviewSummary, type ReviewRow } from "./analytic-review";
+import { classifyPlasticAnalyticRows, partitionAnalyticReview, reviewSummary, type ReviewRow } from "./analytic-review";
 import { matchAnalyticSubjects } from "./match-analytic-subjects";
 
 const row = (rawName: string, kind: ReviewRow["kind"], subjectId?: string): ReviewRow => ({ rawName, kind, subjectId });
 
 describe("guardar lo seguro y revisar lo dudoso", () => {
+  it("asocia un taller optativo sólo con una opción verificada y distinta de la orientación básica", () => {
+    const rows = [{ ...row("Escenografía Complementaria", "UNMATCHED"), section: "elective" as const }];
+    const verified = [{ id: "esc", orientation_id: "escenografia", academic_name: "Escenografía Complementaria", siu_name: null, verification_status: "verified" }];
+    expect(classifyPlasticAnalyticRows(rows, verified, "dibujo")[0]).toMatchObject({ workshopSelected: true, workshopOptionId: "esc" });
+    expect(classifyPlasticAnalyticRows(rows, verified, "escenografia")[0]).toMatchObject({ workshopSelected: false, reviewed: false });
+  });
   it("guarda EXACT y ALIAS sin exigir que se resuelvan las demás", () => {
     const rows = [row("Exacta", "EXACT", "a"), row("Alias", "ALIAS", "b"), row("Probable", "PROBABLE"), row("Ambigua", "AMBIGUOUS"), row("Sin match", "UNMATCHED")];
     const result = partitionAnalyticReview(rows);

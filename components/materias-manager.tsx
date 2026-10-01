@@ -15,6 +15,7 @@ import { matchAnalyticSubjects, type MatchedAnalyticSubject } from "@/lib/academ
 import { AcademicSubjectCard, type SubjectCardStatus } from "@/components/academic/academic-subject-card";
 import { SubjectDetailDialog } from "@/components/academic/subject-detail-dialog";
 import { academicMatchLabel, AnalyticDocumentNotice, AnalyticRecognition, AnalyticUploadCaution, AnalyticUploadGuide } from "@/components/academic/analytic-upload-guide";
+import { gradeAverage } from "@/lib/academic/grade-average";
 
 type Subject = {
   id: string | number;
@@ -268,6 +269,10 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
         pdfSubjects = result.subjects ?? [];
         pdfTextPresent = approvedPdf ? true : result.textPresent ?? false;
         parsedPdf = result as ParsedAnalytic;
+        if (parsedPdf.detectedProgramFamily === "Artes Plásticas") {
+          setError("Este analítico es de Artes Plásticas. Importalo desde Mis trayectorias para conservar el título, plan y orientación correctos.");
+          return;
+        }
         if (!approvedPdf) {
           setPdfPreview(parsedPdf);
           if (parsedPdf.documentType !== "ANALYTIC_WITH_REGULARIZED") return;
@@ -438,6 +443,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
     </div>}
     <div className="card">
       <h2 className="font-display text-xl font-bold">Importar analítico</h2>
+      <Link href="/dashboard/trayectorias" className="mt-2 inline-block text-sm font-bold underline">¿Tu analítico es de Artes Plásticas? Importalo en Mis trayectorias.</Link>
       <div className="mt-3"><AnalyticUploadGuide /></div>
       <p className="mt-2 text-xs text-ink/60">También podés cargar CSV o TXT; vas a revisar todo antes de guardar.</p>
       <label className="mt-5 flex cursor-pointer items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-ink/15 p-8 text-sm text-ink/60 hover:border-coral">
@@ -475,6 +481,7 @@ export function MateriasManager({ managedByEnrollment = false, initialDegree = "
         <div>
           <p className="eyebrow">Plan completo</p>
           <h2 className="font-display text-xl font-bold">Marcá tu recorrido</h2>
+          <p className="mt-1 text-sm font-semibold">Promedio <span className="font-display text-lg">{gradeAverage(history) ?? "—"}</span></p>
           <p className="mt-2 text-sm text-ink/60">Tildá una materia para registrarla. El resaltado flúo indica tu selección.</p>
         </div>
         {hasImport && rows.length > 0 && <button disabled={saving} onClick={() => void saveRows()} className="button-primary">{saving ? "Guardando..." : "Guardar materias"}</button>}

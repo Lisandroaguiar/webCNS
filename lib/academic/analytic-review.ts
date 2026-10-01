@@ -12,7 +12,9 @@ export function classifyPlasticAnalyticRows(rows: MatchedAnalyticSubject[], opti
     if (row.section !== "elective" || !isNamedWorkshopActivity(row.rawName)) return row;
     const option = options.find(item => item.verification_status === "verified" && item.orientation_id !== basicOrientationId &&
       [item.siu_name, item.academic_name].some(name => name && normalizeAcademicSubjectName(name) === normalizeAcademicSubjectName(row.rawName)));
-    return { ...row, workshopSelected: true, workshopOptionId: option?.id, reviewed: true };
+    return option
+      ? { ...row, subjectId: undefined, workshopSelected: true, workshopOptionId: option.id, reviewed: true }
+      : { ...row, subjectId: undefined, workshopSelected: false, workshopOptionId: undefined, reviewed: false };
   });
 }
 

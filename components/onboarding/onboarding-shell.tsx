@@ -13,14 +13,16 @@ import { subjectsForDegree } from "@/lib/academic/degree-catalog";
 import type { ParsedAnalytic } from "@/lib/academic/analytic-parser";
 import { Tape } from "@/components/visual/paper";
 import { academicMatchLabel, AnalyticDocumentNotice, AnalyticRecognition, AnalyticUploadCaution, AnalyticUploadGuide } from "@/components/academic/analytic-upload-guide";
+import { TrajectoryManager } from "@/components/academic/trajectory-manager";
 
 type Subject = { id: string | number; name: string; code: string | null; year: number | null; curriculum: CurriculumValue };
-type Step = "choose" | "manual" | "review";
+type Step = "choose" | "manual" | "review" | "plastic";
 
 export function OnboardingShell() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [step, setStep] = useState<Step>("choose");
+  const [userId, setUserId] = useState<string | null>(null);
   const [degree, setDegree] = useState<DegreeValue>("licenciatura");
   const [curriculum, setCurriculum] = useState<CurriculumValue>("old");
   const [file, setFile] = useState<File | null>(null);
@@ -39,6 +41,7 @@ export function OnboardingShell() {
     async function loadProfile() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
       const { data } = await supabase.from("profiles").select("curriculum").eq("id", user.id).maybeSingle();
       const degreeValue = degreeOptions.find(option => option.profileValue === user.user_metadata?.degree)?.value;
       if (degreeValue) setDegree(degreeValue);
@@ -93,7 +96,11 @@ export function OnboardingShell() {
   }
 
   async function continueParsed(result: ParsedAnalytic) {
-    if (result.detectedProgramFamily === "Artes Plásticas") throw new Error("Detectamos Artes Plásticas. Elegí título, orientación y plan en Mis trayectorias antes de asociar materias; no las guardaremos en Multimedia.");
+    if (result.detectedProgramFamily === "Artes Plásticas") {
+      setParsed(result);
+      setStep("plastic");
+      return;
+    }
     const detectedDegree = result.detectedDegree;
     const detectedCurriculum = result.detectedCurriculum;
     if (detectedDegree) setDegree(detectedDegree);
@@ -183,6 +190,7 @@ export function OnboardingShell() {
       </article>
     </div>}
     {step === "manual" && <div className="card mt-8"><CheckCircle2 className="text-cronopios-magenta" /><h2 className="mt-3 font-display text-2xl font-black">Tu plan está listo</h2><p className="mt-2 text-sm text-cronopios-ink/65">Podés empezar a marcar materias desde Recorrido. Después podés modificar todo.</p><Link href="/dashboard/recorrido" prefetch className="button-primary mt-5 inline-block">Ir a Recorrido</Link></div>}
+    {step === "plastic" && parsed && userId && <TrajectoryManager key={userId} userId={userId} showManagement={false} initialParsed={parsed} />}
     {step === "review" && parsed && <div className="mt-8">
       <div className="border-2 border-cronopios-ink bg-white p-5 shadow-[4px_4px_0_0_#221E21]"><h2 className="font-display text-2xl font-black">Revisá tu analítico</h2><AnalyticRecognition parsed={parsed} /><div className="mt-4 grid gap-3 text-sm sm:grid-cols-3"><p><strong>Carrera:</strong> {degreeOptions.find(option => option.value === degree)?.label ?? "No detectada"}</p><p><strong>Plan:</strong> {curriculumOptions.find(option => option.value === curriculum)?.label ?? "No detectado"}</p><p><strong>Reconocidas:</strong> {matches.filter(item => item.subjectId).length} de {matches.length}</p><p><strong>Para revisar:</strong> {matches.filter(item => !item.reviewed).length}</p></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold">Carrera<select className="input mt-1" value={degree} disabled={loading} onChange={event => void changeReviewContext(curriculum, event.target.value as DegreeValue)}>{degreeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="text-sm font-bold">Plan<select className="input mt-1" value={curriculum} disabled={loading} onChange={event => void changeReviewContext(event.target.value as CurriculumValue, degree)}>{curriculumOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div><label className="mt-4 flex items-start gap-2 text-sm font-bold"><input type="checkbox" checked={contextConfirmed} onChange={event => setContextConfirmed(event.target.checked)} /> Confirmé que la carrera y el plan corresponden a este analítico.</label>{matches.some(item => !item.reviewed) && <p className="mt-4 bg-yellow-100 p-3 text-sm">Hay materias que necesitan revisión. Ninguna sugerencia se guardará automáticamente.</p>}{parsed.warnings.map(warning => <p key={warning} className="mt-4 flex gap-2 bg-yellow-100 p-3 text-sm"><TriangleAlert size={18} className="shrink-0" />{warning}</p>)}{parsed.reportedApprovedCount !== undefined && parsed.reportedApprovedCount !== matches.length && <p className="mt-4 bg-yellow-100 p-3 text-sm">El analítico indica {parsed.reportedApprovedCount} materias aprobadas, pero pudimos reconocer {matches.length}. Revisemos las que faltan.</p>}</div>
       <div className="mt-4 space-y-3">{matches.map((item, index) => <div key={`${item.rawName}-${index}`} className="border-2 border-cronopios-ink bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold">{item.rawName}</p><p className="mt-1 text-xs uppercase tracking-widest text-cronopios-magenta">{academicMatchLabel(item.kind)} · {item.status === "regular" ? "Regularizada" : item.status === "pending" ? "Pendiente" : "Aprobada"}{item.grade !== undefined ? ` · Nota ${item.grade}` : " · Nota no detectada"}</p>{item.passedAt && <p className="mt-1 text-xs text-cronopios-ink/55">{item.passedAt}</p>}{item.candidateId && <p className="mt-1 text-xs text-ink/65">Sugerencia: {catalog.find(subject => String(subject.id) === String(item.candidateId))?.name}. Elegila solo si coincide.</p>}</div><div className="flex w-full flex-col gap-2 sm:w-auto"><select className="input max-w-full sm:max-w-xs" aria-label={`Materia para ${item.rawName}`} value={item.ignored ? "__ignore" : item.subjectId ?? ""} onChange={event => updateMatch(index, event.target.value)}><option value="">Elegir materia</option><option value="__ignore">Ignorar esta fila</option>{catalog.map(subject => <option key={subject.id} value={String(subject.id)}>{subject.name}</option>)}</select><select className="input max-w-full sm:max-w-xs" aria-label={`Estado para ${item.rawName}`} value={item.status ?? "passed"} onChange={event => setMatches(current => current.map((currentItem, currentIndex) => currentIndex === index ? { ...currentItem, status: event.target.value as "passed" | "regular" | "pending" } : currentItem))}><option value="passed">Aprobada</option><option value="regular">Regularizada</option><option value="pending">Pendiente</option></select></div></div></div>)}</div>
