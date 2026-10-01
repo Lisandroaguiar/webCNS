@@ -20,11 +20,12 @@ body {
   color: var(--cronopios-ink);
 }
 button, a, input, select { @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cronopios-magenta; }
+.academic-subject-card { background-image: radial-gradient(rgba(34, 30, 33, .15) .65px, transparent .8px); background-size: 8px 8px; }
 .academic-subject-card__name--passed { position: relative; isolation: isolate; }
 .academic-subject-card__name--passed::before,
-.academic-subject-card__name--passed::after { position: absolute; z-index: 0; left: 1px; width: calc(100% - 2px); height: .45em; background: var(--cronopios-magenta); border-radius: 46% 18% 39% 12% / 31% 48% 25% 42%; clip-path: polygon(0 25%, 5% 7%, 14% 22%, 25% 3%, 38% 16%, 54% 4%, 68% 19%, 82% 7%, 96% 20%, 100% 57%, 94% 84%, 76% 76%, 61% 94%, 43% 81%, 27% 96%, 11% 77%, 0 88%); opacity: .48; pointer-events: none; content: ""; }
-.academic-subject-card__name--passed::before { top: .56em; transform: rotate(-.7deg); }
-.academic-subject-card__name--passed::after { top: 1.74em; transform: rotate(.5deg); }
+.academic-subject-card__name--passed::after { position: absolute; z-index: 0; left: 1px; width: calc(100% - 2px); height: .72em; background: var(--cronopios-magenta); border-radius: 46% 18% 39% 12% / 31% 48% 25% 42%; clip-path: polygon(0 25%, 5% 7%, 14% 22%, 25% 3%, 38% 16%, 54% 4%, 68% 19%, 82% 7%, 96% 20%, 100% 57%, 94% 84%, 76% 76%, 61% 94%, 43% 81%, 27% 96%, 11% 77%, 0 88%); opacity: .52; pointer-events: none; content: ""; }
+.academic-subject-card__name--passed::before { top: .42em; transform: rotate(-.7deg); }
+.academic-subject-card__name--passed::after { top: 1.6em; transform: rotate(.5deg); }
 ::selection { background: var(--cronopios-pink); color: var(--cronopios-ink); }
 @layer components {
   .card { @apply min-w-0 max-w-full rounded-none border-2 border-black bg-white p-5 shadow-[4px_4px_0_0_#221E21]; }
